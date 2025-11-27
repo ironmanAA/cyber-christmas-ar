@@ -361,7 +361,6 @@
 
             // MediaPipe 检测
             if (handLandmarker && video.readyState === 4) {
-                handLandmarker.detectForVideo(video, performance.now());
                 const results = handLandmarker.getRunningMode() === "VIDEO" ? handLandmarker.detectForVideo(video, performance.now()) : null;
                 detectGestures(results ? results.landmarks : null);
             }
