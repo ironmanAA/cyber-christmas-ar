@@ -3,47 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Metallic Cyberpunk AR</title>
+    <title>Cyberpunk ASCII AR - Dual View</title>
     <style>
-        /* --- 视觉风格：极简、黑白、硬核工业感 --- */
+        /* --- 视觉风格：极简、黑白、科技感 --- */
         body {
-            margin: 0; overflow: hidden; background-color: #000;
-            font-family: 'Courier New', Courier, monospace; color: #ccc; /*稍微降低文字亮度配合金属感*/
+            margin: 0;
+            overflow: hidden;
+            background-color: #000; /* 纯黑背景 */
+            font-family: 'Courier New', Courier, monospace;
+            color: #fff;
         }
+
         #loading {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; font-size: 14px; letter-spacing: 2px; z-index: 999; pointer-events: none; color: #aaa;
-            text-shadow: 0 0 5px #fff;
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center; font-size: 14px; letter-spacing: 2px;
+            z-index: 999; pointer-events: none; color: #0f0;
         }
+
         #video-feed { display: none; }
-        /* GUI 自定义 - 金属风格 */
+
+        /* GUI 自定义 */
         .lil-gui.root { position: absolute; top: 20px; left: 20px; z-index: 100; }
         .lil-gui { 
-            --background-color: rgba(30, 30, 35, 0.9); --text-color: #ccc; --title-background-color: #111;
-            --widget-color: #555; --hover-color: #777;
-            border: 1px solid #555 !important; border-radius: 0px !important; box-shadow: 2px 2px 5px rgba(0,0,0,0.5) !important;
+            --background-color: rgba(20, 20, 20, 0.8);
+            --text-color: #0f0;
+            --title-background-color: #111;
+            border: 1px solid #0f0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
         }
         .lil-gui .close-button { display: none; }
+
         /* 数据展示层 */
         #hud {
-            position: absolute; bottom: 20px; left: 20px; pointer-events: none; font-size: 12px; line-height: 1.5;
-            text-shadow: 0 0 2px #000; opacity: 0.9; background: rgba(20,20,25,0.5); padding: 8px; border-left: 3px solid #888;
+            position: absolute; bottom: 20px; left: 20px;
+            pointer-events: none; font-size: 12px; line-height: 1.5;
+            text-shadow: 0 0 2px #0f0; opacity: 0.8;
         }
-        .highlight { color: #fff; font-weight: bold; }
-        .alert { color: #ff3300; font-weight: bold; text-shadow: 0 0 5px #f00; }
-        .accent { color: #ffcc00; } /* 金色强调 */
+        .highlight { color: #0f0; }
+        .alert { color: #f0f; }
     </style>
 </head>
 <body>
 
-    <div id="loading">SYSTEM INITIALIZING...<br>[FORGING METALLIC INSTANCES]</div>
+    <div id="loading">SYSTEM INITIALIZING...<br>[LOADING NEURAL NETWORKS]</div>
     <video id="video-feed" autoplay playsinline></video>
     
     <div id="hud">
-        MODE: <span class="highlight">METALLIC CUBES</span><br>
-        STATUS: <span id="status-text">AWAITING INPUT</span><br>
+        STATUS: <span id="status-text" class="highlight">AWAITING INPUT</span><br>
         HAND: <span id="hand-state">NONE</span><br>
-        INSTANCES: <span id="particle-count" class="accent">0</span> ACTIVE<br>
+        PARTICLES: <span id="particle-count">0</span><br>
         FPS: <span id="fps-counter">0</span>
     </div>
 
@@ -54,300 +64,414 @@
 
         // --- 全局配置 ---
         const config = {
-            particleCount: 25000, // 保持高密度
-            particleSize: 0.12,   // 显著缩小体积 (之前的球体大约是 0.25)
-            scatterStrength: 3.5, // 稍微增强排斥力以应对更重的视觉感
-            returnSpeed: 0.07,    
-            explosionForce: 5.0,  
-            debugSkeleton: true,
-            // 金属色方案
-            colorMetal1: '#FFD700', // 金色 (Gold)
-            colorMetal2: '#C0C0C0', // 银色 (Silver)
-            colorMetal3: '#cd7f32', // 铜色/钢色 (Bronze/Steel)
-            videoScale: 0.25,     
+            particleCount: 15000, // 增加粒子数量
+            particleSize: 0.12,   // 稍微调小单个粒子尺寸以适应高密度
+            scatterStrength: 2.0, // 悬停排斥力度
+            returnSpeed: 0.08,    // 粒子回归速度
+            explosionForce: 3.5,  // 握拳爆炸力度
+            debugSkeleton: true,  // 显示骨骼
+            color1: '#ff0055',    // 霓虹色 1
+            color2: '#00ffaa',    // 霓虹色 2
+            videoScale: 0.25,     // 右上角视频窗口占比 (25%)
         };
 
         // --- 状态管理 ---
         const state = {
-            currentShapeIndex: 0, isExploding: false, handDetected: false, gesture: 'NONE', 
-            isPinching: false, pinchStartPos: new THREE.Vector2(), targetRotation: new THREE.Euler(0, 0, 0),
+            currentShapeIndex: 0,
+            isExploding: false,
+            handDetected: false,
+            gesture: 'NONE', 
+            // 多轴旋转控制状态
+            isPinching: false,
+            pinchStartPos: new THREE.Vector2(),
+            targetRotation: new THREE.Euler(0, 0, 0),
             videoReady: false
         };
 
-        let renderer, mainScene, mainCamera, particleContainer;
-        // 使用 InstancedMesh 而不是 Points
-        let instancedMesh, cubeMaterial, cubeGeometry;
+        // --- Three.js 核心变量 ---
+        let renderer;
+        // 主场景 (粒子)
+        let mainScene, mainCamera, particleContainer, particles, material;
+        // 视频场景 (右上角灰度)
         let videoScene, videoCamera, videoMesh;
+        
         let video, handLandmarker, skeletonLines;
-        // 物理数据数组
-        let currentPositions, targetPositions, velocities;
-        // 用于更新矩阵的临时变量
-        const dummyObject = new THREE.Object3D();
-        const dummyColor = new THREE.Color();
+        
+        // 粒子数据
+        let targetPositions, velocities, colors;
 
         // --- 初始化 ---
         async function init() {
+            // 1. 视频流设定
             video = document.getElementById('video-feed');
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720 } });
-                video.srcObject = stream; await new Promise(r => video.onloadedmetadata = r); video.play(); state.videoReady = true;
-            } catch (e) { document.getElementById('loading').innerHTML = "CAMERA ACCESS DENIED"; return; }
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user', width: 1280, height: 720 } 
+                });
+                video.srcObject = stream;
+                await new Promise(r => video.onloadedmetadata = r);
+                video.play();
+                state.videoReady = true;
+            } catch (e) {
+                document.getElementById('loading').innerHTML = "CAMERA ACCESS DENIED";
+                return;
+            }
 
+            // 2. Renderer 设定 (启用手动清除以支持双视口)
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-            // 启用物理正确的灯光计算
-            renderer.useLegacyLights = false;
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.2;
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
-            renderer.setClearColor(0x000000, 1); renderer.autoClear = false;
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x000000, 1); // 纯黑背景
+            renderer.autoClear = false; // 重要：手动管理渲染清除
             document.body.appendChild(renderer.domElement);
 
-            setupMainScene(); setupVideoScene();
-            await setupMediaPipe(); setupGUI(); setupSkeleton();
+            // 3. 初始化两个场景
+            setupMainScene();
+            setupVideoScene();
+
+            // 4. 初始化 MediaPipe 和辅助工具
+            await setupMediaPipe();
+            setupGUI();
+            setupSkeleton();
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('status-text').innerText = "ONLINE";
             
-            animate(); window.addEventListener('resize', onResize);
+            // 5. 启动循环
+            animate();
+            window.addEventListener('resize', onResize);
         }
 
-        // --- 主场景设置 (添加灯光和环境) ---
+        // --- 主场景设置 (ASCII 粒子) ---
         function setupMainScene() {
             mainScene = new THREE.Scene();
-            // 添加环境雾
-            mainScene.fog = new THREE.FogExp2(0x111111, 0.03);
-            
+            // mainScene.background = new THREE.Color(0x000000); // 由 renderer.setClearColor 控制
+
             mainCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-            mainCamera.position.z = 7;
+            mainCamera.position.z = 6;
 
-            // --- 灯光系统 (为金属提供光泽) ---
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 基础环境光
-            mainScene.add(ambientLight);
-            const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.5); // 主光源
-            dirLight1.position.set(5, 10, 7);
-            mainScene.add(dirLight1);
-            const dirLight2 = new THREE.DirectionalLight(0xaabbff, 0.8); // 冷色补光
-            dirLight2.position.set(-5, -5, -5);
-            mainScene.add(dirLight2);
+            // 创建一个容器用于旋转整个点云
+            particleContainer = new THREE.Group();
+            mainScene.add(particleContainer);
 
-            // --- 生成简单的环境贴图 (用于金属反射) ---
-            const pmremGenerator = new THREE.PMREMGenerator(renderer);
-            pmremGenerator.compileEquirectangularShader();
-            // 创建一个简单的场景作为反射源
-            const envScene = new THREE.Scene();
-            envScene.background = new THREE.Color(0x444444);
-            const boxGeo = new THREE.BoxGeometry(10, 10, 10);
-            const boxMat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa, wireframe: true });
-            envScene.add(new THREE.Mesh(boxGeo, boxMat));
-            const envMap = pmremGenerator.fromScene(envScene).texture;
-            mainScene.environment = envMap; // 设置为场景环境
-            // pmremGenerator.dispose(); // 清理生成器
-
-            particleContainer = new THREE.Group(); mainScene.add(particleContainer);
-            createInstancedSystem();
+            createParticleSystem();
         }
 
-        // --- 视频场景设置 (灰度 - 保持不变) ---
+        // --- 视频场景设置 (右上角灰度) ---
         function setupVideoScene() {
-            videoScene = new THREE.Scene(); videoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-            const videoTexture = new THREE.VideoTexture(video); videoTexture.colorSpace = THREE.SRGBColorSpace;
+            videoScene = new THREE.Scene();
+            videoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            const videoTexture = new THREE.VideoTexture(video);
+            videoTexture.colorSpace = THREE.SRGBColorSpace;
+
+            // 自定义灰度 Shader (同原项目)
             const grayMaterial = new THREE.ShaderMaterial({
                 uniforms: { tDiffuse: { value: videoTexture } },
-                vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
-                fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv; void main() {
-                        vec4 color = texture2D(tDiffuse, vUv); float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                        gray = smoothstep(0.1, 0.8, gray); 
-                        gl_FragColor = vec4(vec3(gray), 1.0); // 纯黑白灰度
-                    }`, depthTest: false, depthWrite: false
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
+                `,
+                fragmentShader: `
+                    uniform sampler2D tDiffuse;
+                    varying vec2 vUv;
+                    void main() {
+                        vec4 color = texture2D(tDiffuse, vUv);
+                        float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+                        // 增加对比度，使其在小窗口更清晰，并带一点绿色调
+                        gray = smoothstep(0.1, 0.8, gray);
+                        gl_FragColor = vec4(gray * 0.8, gray * 1.0, gray * 0.8, 1.0); 
+                    }
+                `,
+                depthTest: false, depthWrite: false
             });
-            videoMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), grayMaterial); videoScene.add(videoMesh);
+            const plane = new THREE.PlaneGeometry(2, 2);
+            videoMesh = new THREE.Mesh(plane, grayMaterial);
+            videoScene.add(videoMesh);
         }
 
-        // --- 核心升级：InstancedMesh 金属方块系统 ---
-        function createInstancedSystem() {
-            // 1. 创建单一的立方体几何体
-            const s = config.particleSize;
-            cubeGeometry = new THREE.BoxGeometry(s, s, s); 
-
-            // 2. 创建标准物理材质 (金属)
-            cubeMaterial = new THREE.MeshStandardMaterial({
-                color: 0xffffff, // 基色 (会被实例颜色覆盖)
-                metalness: 0.9,  // 高金属度
-                roughness: 0.15, // 低粗糙度 (光滑)
-                envMapIntensity: 1.0 // 环境反射强度
+        // --- 粒子系统核心 (复用原项目逻辑) ---
+        function createParticleSystem() {
+            const geometry = new THREE.BufferGeometry();
+            
+            // ASCII 纹理生成 (同原项目)
+            const spriteSize = 64;
+            const canvas = document.createElement('canvas');
+            canvas.width = spriteSize * 4; canvas.height = spriteSize;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'bold 40px Courier New'; ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ['+', '*', '1', '0'].forEach((char, i) => {
+                ctx.fillText(char, (i * spriteSize) + spriteSize/2, spriteSize/2);
             });
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter;
 
-            // 3. 创建 InstancedMesh
-            instancedMesh = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, config.particleCount);
-            instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // 设置为动态更新
-
-            // 初始化数据数组
-            currentPositions = new Float32Array(config.particleCount * 3);
+            // 初始化数组
+            const posArray = new Float32Array(config.particleCount * 3);
+            const colorArray = new Float32Array(config.particleCount * 3);
+            const sizeArray = new Float32Array(config.particleCount);
             targetPositions = new Float32Array(config.particleCount * 3);
             velocities = new Array(config.particleCount).fill().map(() => new THREE.Vector3());
 
-            // 颜色准备
-            const cMetal1 = new THREE.Color(config.colorMetal1);
-            const cMetal2 = new THREE.Color(config.colorMetal2);
-            const cMetal3 = new THREE.Color(config.colorMetal3);
+            const c1 = new THREE.Color(config.color1);
+            const c2 = new THREE.Color(config.color2);
 
             for (let i = 0; i < config.particleCount; i++) {
-                // 初始随机位置
-                const ix = (Math.random()-0.5)*30; const iy = (Math.random()-0.5)*30; const iz = (Math.random()-0.5)*30;
-                currentPositions[i*3] = ix; currentPositions[i*3+1] = iy; currentPositions[i*3+2] = iz;
+                posArray[i*3] = (Math.random() - 0.5) * 15;
+                posArray[i*3+1] = (Math.random() - 0.5) * 15;
+                posArray[i*3+2] = (Math.random() - 0.5) * 15;
                 
-                // 设置初始矩阵 (位置 + 随机旋转)
-                dummyObject.position.set(ix, iy, iz);
-                dummyObject.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
-                dummyObject.updateMatrix();
-                instancedMesh.setMatrixAt(i, dummyObject.matrix);
-
-                // 颜色分配 (金属色)
-                let finalColor;
-                const rand = Math.random();
-                if (rand < 0.4) finalColor = cMetal1;      // 40% 金
-                else if (rand < 0.75) finalColor = cMetal2; // 35% 银
-                else finalColor = cMetal3;                 // 25% 铜/钢
-                
-                // 稍微调整亮度增加变化
-                dummyColor.copy(finalColor).multiplyScalar(0.8 + Math.random() * 0.4);
-                instancedMesh.setColorAt(i, dummyColor);
+                const mixed = c1.clone().lerp(c2, Math.random());
+                colorArray[i*3] = mixed.r; colorArray[i*3+1] = mixed.g; colorArray[i*3+2] = mixed.b;
+                sizeArray[i] = config.particleSize * (0.5 + Math.random());
             }
 
-            instancedMesh.instanceMatrix.needsUpdate = true; // 重要：通知 GPU 更新矩阵
-            instancedMesh.instanceColor.needsUpdate = true;  // 重要：通知 GPU 更新颜色
+            geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizeArray, 1));
 
-            particleContainer.add(instancedMesh);
+            // Shader Material (同原项目)
+            material = new THREE.ShaderMaterial({
+                uniforms: { tex: { value: texture }, scale: { value: window.innerHeight / 2.0 } },
+                vertexShader: `
+                    attribute float size; attribute vec3 color; varying vec3 vColor; varying float vCharIndex;
+                    void main() {
+                        vColor = color; vCharIndex = floor(fract(position.x * 10.0 + position.y * 5.0) * 4.0) * 0.25;
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        gl_PointSize = size * (300.0 / -mvPosition.z); gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D tex; varying vec3 vColor; varying float vCharIndex;
+                    void main() {
+                        vec2 uv = gl_PointCoord; float u = uv.x * 0.25 + vCharIndex;
+                        vec4 texColor = texture2D(tex, vec2(u, uv.y));
+                        if (texColor.a < 0.5) discard;
+                        gl_FragColor = vec4(vColor * texColor.rgb, 1.0);
+                    }
+                `,
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+
+            particles = new THREE.Points(geometry, material);
+            particleContainer.add(particles); // 添加到容器而不是直接添加到场景
             generateShape(0);
         }
 
-        // --- 具象化形状生成逻辑 (保持不变) ---
+        // --- 形状生成逻辑 (同原项目, 略微调整参数适配高密度) ---
         function generateShape(index) {
-            const count = config.particleCount; const newTargets = new Float32Array(count * 3);
-            const randSpread = (center, spread) => center + (Math.random() - 0.5) * spread;
-            const fillCylinder = (idx, startIdx, endIdx, height, radiusTop, radiusBottom, centerY, spread=0.1) => {
-                for(let i=startIdx; i<endIdx; i++) {
-                    const t = (i - startIdx) / (endIdx - startIdx); const y = (t - 0.5) * height + centerY;
-                    const r = radiusBottom * (1-t) + radiusTop * t; const angle = Math.random() * Math.PI * 2; const rRandom = Math.sqrt(Math.random()) * r;
-                    newTargets[i*3] = randSpread(Math.cos(angle)*rRandom, spread); newTargets[i*3+1] = randSpread(y, spread); newTargets[i*3+2] = randSpread(Math.sin(angle)*rRandom, spread);
-                }
-            }
-            const fillSphere = (idx, startIdx, endIdx, radius, centerX, centerY, centerZ, spread=0.1) => {
-                 for(let i=startIdx; i<endIdx; i++) {
-                    const u = Math.random(); const v = Math.random(); const theta = 2 * Math.PI * u; const phi = Math.acos(2 * v - 1); const r = Math.cbrt(Math.random()) * radius;
-                    newTargets[i*3] = randSpread(centerX + r * Math.sin(phi) * Math.cos(theta), spread); newTargets[i*3+1] = randSpread(centerY + r * Math.sin(phi) * Math.sin(theta), spread); newTargets[i*3+2] = randSpread(centerZ + r * Math.cos(phi), spread);
-                }
-            }
+            const count = config.particleCount;
+            const newTargets = new Float32Array(count * 3);
             switch(index % 5) {
                 case 0: // 树
-                    const trunkCount = Math.floor(count * 0.15); fillCylinder(0, 0, trunkCount, 2.0, 0.4, 0.5, -2.5, 0.2);
-                    const layer1Count = Math.floor(count * 0.35); fillCylinder(0, trunkCount, trunkCount+layer1Count, 2.5, 1.5, 2.5, -1.0, 0.3);
-                    const layer2Count = Math.floor(count * 0.30); fillCylinder(0, trunkCount+layer1Count, trunkCount+layer1Count+layer2Count, 2.2, 0.8, 1.8, 1.0, 0.3);
-                    fillCylinder(0, trunkCount+layer1Count+layer2Count, count, 1.8, 0.0, 1.0, 2.8, 0.2); break;
+                    for(let i=0; i<count; i++) {
+                        const t = i / count; const angle = t * Math.PI * 25; const r = (1-t)*2.0; const y = (t-0.5)*5;
+                        newTargets[i*3] = Math.cos(angle)*r; newTargets[i*3+1]=y; newTargets[i*3+2]=Math.sin(angle)*r;
+                    } break;
                 case 1: // 雪人
-                    const bodyCount = Math.floor(count*0.4); fillSphere(0, 0, bodyCount, 1.8, 0, -1.8, 0, 0.2);
-                    const headCount = Math.floor(count*0.25); fillSphere(0, bodyCount, bodyCount+headCount, 1.1, 0, 0.8, 0, 0.15);
-                    const armCount = Math.floor(count*0.1); fillCylinder(0, bodyCount+headCount, bodyCount+headCount+armCount, 2.0, 0.15, 0.15, -0.5, 0.1); for(let i=bodyCount+headCount; i<bodyCount+headCount+armCount;i++) newTargets[i*3] -= 2.0;
-                    const hatBaseCount = Math.floor(count*0.1); fillCylinder(0, count-hatBaseCount-Math.floor(count*0.05), count-Math.floor(count*0.05), 0.1, 1.2, 1.2, 1.8, 0.05);
-                    fillCylinder(0, count-Math.floor(count*0.05), count, 0.8, 0.7, 0.7, 2.3, 0.05); break;
+                    for(let i=0; i<count; i++) {
+                        let y,r, t=i/count; if(t<0.4){y=-1.5;r=1.2;}else if(t<0.75){y=0.2;r=0.9;}else{y=1.4;r=0.6;}
+                        const u=Math.random(), v=Math.random(), th=2*Math.PI*u, ph=Math.acos(2*v-1);
+                        newTargets[i*3]=r*Math.sin(ph)*Math.cos(th); newTargets[i*3+1]=r*Math.sin(ph)*Math.sin(th)+y; newTargets[i*3+2]=r*Math.cos(ph);
+                    } break;
                 case 2: // 礼盒
-                    const ribbonCount = Math.floor(count * 0.25); const boxSize = 2.2;
-                    for(let i=0; i<count-ribbonCount; i++) { newTargets[i*3]=randSpread(0, boxSize*2); newTargets[i*3+1]=randSpread(0, boxSize*2); newTargets[i*3+2]=randSpread(0, boxSize*2); }
-                    for(let i=count-ribbonCount; i<count; i++) { const t = (i-(count-ribbonCount))/ribbonCount; const ribbonWidth = 0.4;
-                        if(t<0.5) { newTargets[i*3]=randSpread(0, boxSize*2.1); newTargets[i*3+1]=randSpread(0, ribbonWidth); newTargets[i*3+2]=boxSize+randSpread(0,0.1); }
-                        else { newTargets[i*3]=randSpread(0, ribbonWidth); newTargets[i*3+1]=randSpread(0, boxSize*2.1); newTargets[i*3+2]=boxSize+randSpread(0,0.1); } } break;
+                    for(let i=0; i<count; i++) {
+                        newTargets[i*3]=(Math.random()-0.5)*3; newTargets[i*3+1]=(Math.random()-0.5)*3; newTargets[i*3+2]=(Math.random()-0.5)*3;
+                    } break;
                 case 3: // 鹿角
-                    for(let i=0; i<count; i++) { const t=i/count; const side=t>0.5?1:-1; let t2=(t%0.5)*2; let x,y,z, spread=0.15;
-                        const mainAngle = (t2*Math.PI*0.6)-Math.PI/2.5; const r=2.8; x = Math.cos(mainAngle)*r*side + (side*0.8); y = Math.sin(mainAngle)*r*1.3 - 0.5; z = (Math.random()-0.5)*0.5;
-                        if (t2>0.3 && t2<0.5 && Math.random()>0.4) { x+=Math.random()*1.2*side; y+=Math.random()*1.5; spread=0.1;}
-                        if (t2>0.6 && t2<0.8 && Math.random()>0.4) { x+=Math.random()*0.8*side; y+=Math.random()*1.0; spread=0.1;}
-                        newTargets[i*3]=randSpread(x,spread); newTargets[i*3+1]=randSpread(y,spread); newTargets[i*3+2]=randSpread(z,spread); } break;
-                case 4: // 糖果棒
-                    for(let i=0; i<count; i++) { const t=i/count; let x,y,z, tubeRadius=0.45; const stripeAngle = t * Math.PI * 20; const isInStripe = Math.sin(stripeAngle) > 0; tubeRadius *= isInStripe ? 1.1 : 0.9;
-                        const angleTube = Math.random()*Math.PI*2; const tx=Math.cos(angleTube)*tubeRadius; const tz=Math.sin(angleTube)*tubeRadius;
-                        if(t<0.65){ x=tx; y=(t/0.65)*4-2.0; z=tz; } else{ const a=((t-0.65)/0.35)*Math.PI*1.1, r=1.2; x=r*Math.cos(a)-r+tx; y=2.0+r*Math.sin(a)+tz*0.2; z=tz+Math.sin(a)*0.3; }
-                        newTargets[i*3]=randSpread(x,0.1); newTargets[i*3+1]=randSpread(y,0.1); newTargets[i*3+2]=randSpread(z,0.1); } break;
+                    for(let i=0; i<count; i++) {
+                        const t=i/count, side=t>0.5?1:-1, t2=(t%0.5)*2, angle=(t2*Math.PI)-Math.PI/2;
+                        let x=Math.cos(angle)*2*side+(side*0.5), y=Math.sin(angle)*2, z=(Math.random()-0.5)*0.3;
+                        newTargets[i*3]=x;newTargets[i*3+1]=y;newTargets[i*3+2]=z;
+                    } break;
+                case 4: // 糖果
+                    for(let i=0; i<count; i++) {
+                        const t=i/count; let x,y,z;
+                        if(t<0.7){ x=(Math.random()-0.5)*0.3; y=(t/0.7)*4-2; z=(Math.random()-0.5)*0.3; }
+                        else{ const a=((t-0.7)/0.3)*Math.PI, r=1.0; x=r*Math.cos(a)-r; y=2+r*Math.sin(a); z=(Math.random()-0.5)*0.3; }
+                        newTargets[i*3]=x;newTargets[i*3+1]=y;newTargets[i*3+2]=z;
+                    } break;
             }
             for(let i=0; i<count*3; i++) targetPositions[i] = newTargets[i];
         }
 
-        // --- MediaPipe & 交互 (保持不变) ---
+        // --- MediaPipe 与骨骼 ---
         async function setupMediaPipe() {
             const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm");
-            handLandmarker = await HandLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "GPU" }, runningMode: "VIDEO", numHands: 1 });
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "GPU" },
+                runningMode: "VIDEO", numHands: 1
+            });
         }
         function setupSkeleton() {
-            skeletonLines = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(HandLandmarker.HAND_CONNECTIONS.length*6), 3)), new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.4 })); mainScene.add(skeletonLines);
+            const mat = new THREE.LineBasicMaterial({ color: 0x00ff00, depthTest: false, transparent: true, opacity: 0.5 });
+            const geo = new THREE.BufferGeometry(); const pos = new Float32Array(HandLandmarker.HAND_CONNECTIONS.length*2*3);
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            skeletonLines = new THREE.LineSegments(geo, mat); skeletonLines.renderOrder = 999;
+            mainScene.add(skeletonLines); // 添加到主场景
         }
+
+        // --- 核心交互逻辑 (升级版) ---
         function detectGestures(landmarks) {
             const hudHand = document.getElementById('hand-state');
-            if (!landmarks || landmarks.length === 0) { state.handDetected = false; state.gesture = 'NONE'; hudHand.innerText = "NONE"; hudHand.className = ""; skeletonLines.visible = false; return null; }
+            if (!landmarks || landmarks.length === 0) {
+                state.handDetected = false; state.gesture = 'NONE';
+                hudHand.innerText = "NONE"; hudHand.className = ""; skeletonLines.visible = false;
+                return null;
+            }
             state.handDetected = true; skeletonLines.visible = config.debugSkeleton;
-            const lm = landmarks[0]; const mapCoord = (p) => new THREE.Vector3((p.x - 0.5) * 10, -(p.y - 0.5) * 8, 0); const handPoints = lm.map(p => mapCoord(p));
-            const pos = skeletonLines.geometry.attributes.position.array; let idx = 0;
-            for(let pair of HandLandmarker.HAND_CONNECTIONS) { const p1=handPoints[pair.start], p2=handPoints[pair.end]; pos[idx++]=p1.x;pos[idx++]=p1.y;pos[idx++]=p1.z; pos[idx++]=p2.x;pos[idx++]=p2.y;pos[idx++]=p2.z; } skeletonLines.geometry.attributes.position.needsUpdate = true;
-            const wrist=handPoints[0], tips=[4,8,12,16,20]; let foldedCount=0; tips.forEach(t=>{if(handPoints[t].distanceTo(wrist)<1.5)foldedCount++});
-            const pinchDist = handPoints[4].distanceTo(handPoints[8]); let newGesture = 'HOVER'; hudHand.className = "highlight";
-            if (foldedCount >= 4) { newGesture = 'FIST'; hudHand.className = "alert"; } else if (pinchDist < 0.5) { newGesture = 'PINCH'; hudHand.className = "accent"; }
-            if (newGesture === 'FIST' && state.gesture !== 'FIST') triggerExplosion();
-            if (newGesture === 'PINCH') {
-                if (!state.isPinching) { state.isPinching = true; state.pinchStartPos.set(lm[9].x, lm[9].y); }
-                state.targetRotation.y = (lm[9].x - state.pinchStartPos.x) * 5.0; state.targetRotation.x = (lm[9].y - state.pinchStartPos.y) * 5.0;
-            } else { state.isPinching = false; }
-            state.gesture = newGesture; hudHand.innerText = newGesture; return handPoints[9];
-        }
-        function triggerExplosion() { if (state.isExploding) return; state.isExploding = true; for(let i=0; i<config.particleCount; i++) velocities[i].set((Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce); setTimeout(() => { state.currentShapeIndex++; generateShape(state.currentShapeIndex); state.isExploding = false; }, 500); }
+            const lm = landmarks[0];
 
-        // --- 物理更新 & 渲染循环 (适配 InstancedMesh) ---
-        function updatePhysics(handPos, delta) {
+            // 坐标映射 (映射到主场景世界坐标系)
+            // 注意：这里需要根据相机距离和FOV进行调整，以确保手部位置与3D物体对齐
+            // 简化的经验值映射：
+            const mapCoord = (p) => new THREE.Vector3((p.x - 0.5) * 10, -(p.y - 0.5) * 8, 0);
+            const handPoints = lm.map(p => mapCoord(p));
+
+            // 更新骨骼
+            const positions = skeletonLines.geometry.attributes.position.array; let idx = 0;
+            for(let pair of HandLandmarker.HAND_CONNECTIONS) {
+                const p1 = handPoints[pair.start], p2 = handPoints[pair.end];
+                positions[idx++]=p1.x;positions[idx++]=p1.y;positions[idx++]=p1.z; positions[idx++]=p2.x;positions[idx++]=p2.y;positions[idx++]=p2.z;
+            }
+            skeletonLines.geometry.attributes.position.needsUpdate = true;
+
+            // 手势识别
+            const wrist = handPoints[0], tips = [4, 8, 12, 16, 20];
+            let foldedCount = 0; tips.forEach(t => { if (handPoints[t].distanceTo(wrist) < 1.5) foldedCount++; });
+            const pinchDist = handPoints[4].distanceTo(handPoints[8]);
+
+            let newGesture = 'HOVER';
+            hudHand.className = "";
+            if (foldedCount >= 4) { newGesture = 'FIST'; hudHand.className = "alert"; }
+            else if (pinchDist < 0.5) { newGesture = 'PINCH'; hudHand.className = "highlight"; }
+
+            // 状态机动作
+            if (newGesture === 'FIST' && state.gesture !== 'FIST') triggerExplosion();
+
+            // --- Pinch 多轴旋转逻辑 ---
+            if (newGesture === 'PINCH') {
+                // 使用手掌中心点 (Index 9) 作为控制锚点
+                const palmCenter = handPoints[9];
+                if (!state.isPinching) {
+                    state.isPinching = true;
+                    // 记录起始位置 (使用屏幕归一化坐标更稳定，从原始lm获取)
+                    state.pinchStartPos.set(lm[9].x, lm[9].y);
+                }
+                // 计算位移差值
+                const deltaX = lm[9].x - state.pinchStartPos.x;
+                const deltaY = lm[9].y - state.pinchStartPos.y;
+                
+                // 映射到目标旋转角度 (灵敏度系数 5.0 可调)
+                // 水平移动控制 Y 轴旋转，垂直移动控制 X 轴旋转
+                state.targetRotation.y = deltaX * 5.0;
+                state.targetRotation.x = deltaY * 5.0;
+
+            } else {
+                state.isPinching = false;
+                // 可选：松手后自动回正
+                // state.targetRotation.set(0, 0, 0);
+            }
+
+            state.gesture = newGesture; hudHand.innerText = newGesture;
+            return handPoints[9]; // 返回手掌中心用于排斥场
+        }
+
+        function triggerExplosion() {
+            if (state.isExploding) return; state.isExploding = true;
+            for(let i=0; i<config.particleCount; i++) velocities[i].set((Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce);
+            setTimeout(() => { state.currentShapeIndex++; generateShape(state.currentShapeIndex); state.isExploding = false; }, 500);
+        }
+
+        // --- 物理更新 ---
+        function updatePhysics(handPos) {
+            // 应用旋转 (对容器进行平滑插值)
             particleContainer.rotation.y += (state.targetRotation.y - particleContainer.rotation.y) * 0.1;
             particleContainer.rotation.x += (state.targetRotation.x - particleContainer.rotation.x) * 0.1;
             
-            // 获取当前实例的矩阵
+            const pos = particles.geometry.attributes.position.array;
             for (let i = 0; i < config.particleCount; i++) {
-                let vx=velocities[i].x, vy=velocities[i].y, vz=velocities[i].z;
-                const idx=i*3;
-                let px=currentPositions[idx], py=currentPositions[idx+1], pz=currentPositions[idx+2];
+                let vx = velocities[i].x, vy = velocities[i].y, vz = velocities[i].z;
+                const idx=i*3, px=pos[idx], py=pos[idx+1], pz=pos[idx+2], tx=targetPositions[idx], ty=targetPositions[idx+1], tz=targetPositions[idx+2];
                 
-                if (!state.isExploding) { vx += (targetPositions[idx]-px)*config.returnSpeed; vy += (targetPositions[idx+1]-py)*config.returnSpeed; vz += (targetPositions[idx+2]-pz)*config.returnSpeed; }
-                if (state.handDetected && handPos && state.gesture === 'HOVER') { const dx=px-handPos.x, dy=py-handPos.y, distSq=dx*dx+dy*dy; if(distSq<3.5){const dist=Math.sqrt(distSq), f=(1.9-dist)*config.scatterStrength; vx+=(dx/dist)*f; vy+=(dy/dist)*f;}}
-                vx*=0.93; vy*=0.93; vz*=0.93; 
-                px+=vx; py+=vy; pz+=vz;
-                currentPositions[idx]=px; currentPositions[idx+1]=py; currentPositions[idx+2]=pz; velocities[i].set(vx, vy, vz);
-
-                // 更新矩阵 (重要：这里不再是直接修改 attribute，而是更新矩阵)
-                // 为了性能，我们只更新位置，保持初始的随机旋转不变
-                instancedMesh.getMatrixAt(i, dummyObject.matrix); // 获取当前矩阵
-                dummyObject.matrix.decompose(dummyObject.position, dummyObject.quaternion, dummyObject.scale); // 分解
-                dummyObject.position.set(px, py, pz); // 更新位置
-                dummyObject.updateMatrix(); // 重组矩阵
-                instancedMesh.setMatrixAt(i, dummyObject.matrix); // 设置回实例
+                if (!state.isExploding) {
+                    vx += (tx - px) * config.returnSpeed; vy += (ty - py) * config.returnSpeed; vz += (tz - pz) * config.returnSpeed;
+                }
+                if (state.handDetected && handPos && state.gesture === 'HOVER') {
+                    // 简化的世界坐标排斥 (忽略容器旋转以提高性能)
+                    const dx = px - handPos.x, dy = py - handPos.y, distSq = dx*dx + dy*dy;
+                    if (distSq < 2.5) { const dist = Math.sqrt(distSq), force = (1.6 - dist) * config.scatterStrength; vx += (dx/dist)*force; vy += (dy/dist)*force; }
+                }
+                vx*=0.9; vy*=0.9; vz*=0.9;
+                pos[idx]+=vx; pos[idx+1]+=vy; pos[idx+2]+=vz;
+                velocities[i].set(vx, vy, vz);
             }
-            // 通知 GPU 矩阵已更新
-            instancedMesh.instanceMatrix.needsUpdate = true;
+            particles.geometry.attributes.position.needsUpdate = true;
         }
 
+        // --- GUI & 工具 ---
         function setupGUI() {
-            const gui = new GUI({ title: 'METALLIC_CTRL' });
-            gui.add(config, 'scatterStrength', 0, 5).name('REPULSION'); gui.add(config, 'returnSpeed', 0.01, 0.15).name('COHESION');
-            // 注意：InstancedMesh改变大小比较复杂，这里简化为不可调，或需要重新生成Geometry
-            // gui.add(config, 'particleSize', 0.05, 0.3).name('CUBE_SIZE'); 
-            gui.addColor(config, 'colorMetal1').name('GOLD_COLOR');
+            const gui = new GUI({ title: 'SYSTEM_CTRL' });
+            gui.add(config, 'scatterStrength', 0, 5).name('REPULSION');
+            gui.add(config, 'returnSpeed', 0.01, 0.2).name('COHESION');
+            gui.add(config, 'debugSkeleton').name('SKELETON_VIS').onChange(v => skeletonLines.visible = v);
+            const folder = gui.addFolder('COLOR_THEME');
+            folder.addColor(config, 'color1').onChange(updateColors); folder.addColor(config, 'color2').onChange(updateColors);
+        }
+        function updateColors() {
+            const c1 = new THREE.Color(config.color1), c2 = new THREE.Color(config.color2), colors = particles.geometry.attributes.color.array;
+            for(let i=0; i<config.particleCount; i++) { const mixed = c1.clone().lerp(c2, Math.random()); colors[i*3]=mixed.r; colors[i*3+1]=mixed.g; colors[i*3+2]=mixed.b; }
+            particles.geometry.attributes.color.needsUpdate = true;
+        }
+        function onResize() {
+            const w = window.innerWidth, h = window.innerHeight;
+            renderer.setSize(w, h);
+            mainCamera.aspect = w / h; mainCamera.updateProjectionMatrix();
+            material.uniforms.scale.value = h / 2.0;
         }
 
-        function onResize() { const w=window.innerWidth, h=window.innerHeight; renderer.setSize(w, h); mainCamera.aspect=w/h; mainCamera.updateProjectionMatrix(); }
-
+        // --- 主渲染循环 (双视口) ---
         let lastTime = 0;
         function animate(time) {
-            requestAnimationFrame(animate); const delta = (time - lastTime)/1000; lastTime = time;
-            if (handLandmarker && state.videoReady) { const results = handLandmarker.detectForVideo(video, performance.now()); updatePhysics(detectGestures(results.landmarks), delta); } else { updatePhysics(null, delta); }
-            document.getElementById('particle-count').innerText = config.particleCount; document.getElementById('fps-counter').innerText = Math.round(1/delta)||0;
-            const w=window.innerWidth, h=window.innerHeight;
-            renderer.setViewport(0,0,w,h); renderer.setScissor(0,0,w,h); renderer.setScissorTest(true); renderer.clear(true,true,true); renderer.render(mainScene, mainCamera);
-            if (state.videoReady) { const vw=w*config.videoScale, vh=vw*(9/16), vx=w-vw-10, vy=h-vh-10; renderer.setViewport(vx,vy,vw,vh); renderer.setScissor(vx,vy,vw,vh); renderer.setScissorTest(true); renderer.clearDepth(); renderer.render(videoScene, videoCamera); }
+            requestAnimationFrame(animate);
+            const delta = time - lastTime; lastTime = time;
+
+            // 1. 逻辑更新
+            if (handLandmarker && state.videoReady) {
+                const results = handLandmarker.detectForVideo(video, performance.now());
+                const handCenter = detectGestures(results.landmarks);
+                updatePhysics(handCenter);
+            } else { updatePhysics(null); }
+
+            document.getElementById('particle-count').innerText = config.particleCount;
+            document.getElementById('fps-counter').innerText = Math.round(1000 / delta) || 0;
+
+            // 2. 核心渲染流程 (双视口)
+            const w = window.innerWidth, h = window.innerHeight;
+
+            // A. 渲染主视口 (全屏黑背景 + 粒子)
+            renderer.setViewport(0, 0, w, h);
+            renderer.setScissor(0, 0, w, h);
+            renderer.setScissorTest(true);
+            renderer.clear(true, true, true); // 清除为黑色
+            renderer.render(mainScene, mainCamera);
+
+            // B. 渲染次视口 (右上角视频)
+            if (state.videoReady) {
+                const vw = w * config.videoScale; 
+                const vh = vw * (9/16); // 保持 16:9 比例 (假设摄像头是 16:9)
+                const vx = w - vw - 10; // 右边距 10px
+                const vy = h - vh - 10; // 上边距 10px
+                
+                renderer.setViewport(vx, vy, vw, vh);
+                renderer.setScissor(vx, vy, vw, vh);
+                renderer.setScissorTest(true);
+                renderer.clearDepth(); // 关键：清除深度，防止粒子遮挡视频
+                renderer.render(videoScene, videoCamera);
+            }
             renderer.setScissorTest(false);
         }
+
         init();
     </script>
 </body>
