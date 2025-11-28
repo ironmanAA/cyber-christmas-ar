@@ -3,46 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Neon Christmas AR - Volumetric Edition</title>
+    <title>Metallic Cyberpunk AR</title>
     <style>
-        /* --- 视觉风格：极简、黑白、科技感 --- */
+        /* --- 视觉风格：极简、黑白、硬核工业感 --- */
         body {
             margin: 0; overflow: hidden; background-color: #000;
-            font-family: 'Courier New', Courier, monospace; color: #fff;
+            font-family: 'Courier New', Courier, monospace; color: #ccc; /*稍微降低文字亮度配合金属感*/
         }
         #loading {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; font-size: 14px; letter-spacing: 2px; z-index: 999; pointer-events: none; color: #0f0;
-            text-shadow: 0 0 10px #0f0;
+            text-align: center; font-size: 14px; letter-spacing: 2px; z-index: 999; pointer-events: none; color: #aaa;
+            text-shadow: 0 0 5px #fff;
         }
         #video-feed { display: none; }
-        /* GUI 自定义 */
+        /* GUI 自定义 - 金属风格 */
         .lil-gui.root { position: absolute; top: 20px; left: 20px; z-index: 100; }
         .lil-gui { 
-            --background-color: rgba(10, 20, 10, 0.9); --text-color: #0f0; --title-background-color: #051005;
-            border: 1px solid #0f0 !important; border-radius: 2px !important; box-shadow: 0 0 5px #0f0 !important;
+            --background-color: rgba(30, 30, 35, 0.9); --text-color: #ccc; --title-background-color: #111;
+            --widget-color: #555; --hover-color: #777;
+            border: 1px solid #555 !important; border-radius: 0px !important; box-shadow: 2px 2px 5px rgba(0,0,0,0.5) !important;
         }
         .lil-gui .close-button { display: none; }
         /* 数据展示层 */
         #hud {
             position: absolute; bottom: 20px; left: 20px; pointer-events: none; font-size: 12px; line-height: 1.5;
-            text-shadow: 0 0 2px #0f0; opacity: 0.9; background: rgba(0,0,0,0.3); padding: 5px; border-left: 2px solid #0f0;
+            text-shadow: 0 0 2px #000; opacity: 0.9; background: rgba(20,20,25,0.5); padding: 8px; border-left: 3px solid #888;
         }
-        .highlight { color: #0f0; font-weight: bold; }
-        .alert { color: #f05; font-weight: bold; text-shadow: 0 0 5px #f05; }
-        .accent { color: #0ff; }
+        .highlight { color: #fff; font-weight: bold; }
+        .alert { color: #ff3300; font-weight: bold; text-shadow: 0 0 5px #f00; }
+        .accent { color: #ffcc00; } /* 金色强调 */
     </style>
 </head>
 <body>
 
-    <div id="loading">SYSTEM INITIALIZING...<br>[GENERATING VOLUMETRIC NEON CLOUD]</div>
+    <div id="loading">SYSTEM INITIALIZING...<br>[FORGING METALLIC INSTANCES]</div>
     <video id="video-feed" autoplay playsinline></video>
     
     <div id="hud">
-        MODE: <span class="highlight">VOLUMETRIC NEON</span><br>
+        MODE: <span class="highlight">METALLIC CUBES</span><br>
         STATUS: <span id="status-text">AWAITING INPUT</span><br>
         HAND: <span id="hand-state">NONE</span><br>
-        PARTICLES: <span id="particle-count" class="accent">0</span> ACTIVE<br>
+        INSTANCES: <span id="particle-count" class="accent">0</span> ACTIVE<br>
         FPS: <span id="fps-counter">0</span>
     </div>
 
@@ -53,16 +54,16 @@
 
         // --- 全局配置 ---
         const config = {
-            particleCount: 25000, // 显著增加粒子数量以获得体积感
-            particleSize: 0.25,   // 增大单个粒子尺寸
-            scatterStrength: 3.0, // 增强排斥力度
-            returnSpeed: 0.06,    // 稍慢的回归速度增加厚重感
-            explosionForce: 4.5,  
+            particleCount: 25000, // 保持高密度
+            particleSize: 0.12,   // 显著缩小体积 (之前的球体大约是 0.25)
+            scatterStrength: 3.5, // 稍微增强排斥力以应对更重的视觉感
+            returnSpeed: 0.07,    
+            explosionForce: 5.0,  
             debugSkeleton: true,
-            // 三色霓虹方案 (绿色主导)
-            colorDominant: '#00ff44', // 霓虹绿 (主导)
-            colorAccent1: '#00ddee',  // 霓虹青 (辅助)
-            colorAccent2: '#ff00aa',  // 霓虹粉 (点缀)
+            // 金属色方案
+            colorMetal1: '#FFD700', // 金色 (Gold)
+            colorMetal2: '#C0C0C0', // 银色 (Silver)
+            colorMetal3: '#cd7f32', // 铜色/钢色 (Bronze/Steel)
             videoScale: 0.25,     
         };
 
@@ -73,10 +74,16 @@
             videoReady: false
         };
 
-        let renderer, mainScene, mainCamera, particleContainer, particles, material;
+        let renderer, mainScene, mainCamera, particleContainer;
+        // 使用 InstancedMesh 而不是 Points
+        let instancedMesh, cubeMaterial, cubeGeometry;
         let videoScene, videoCamera, videoMesh;
         let video, handLandmarker, skeletonLines;
-        let targetPositions, velocities;
+        // 物理数据数组
+        let currentPositions, targetPositions, velocities;
+        // 用于更新矩阵的临时变量
+        const dummyObject = new THREE.Object3D();
+        const dummyColor = new THREE.Color();
 
         // --- 初始化 ---
         async function init() {
@@ -87,8 +94,12 @@
             } catch (e) { document.getElementById('loading').innerHTML = "CAMERA ACCESS DENIED"; return; }
 
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            // 启用物理正确的灯光计算
+            renderer.useLegacyLights = false;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 略微降低像素比以平衡高性能压力
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
             renderer.setClearColor(0x000000, 1); renderer.autoClear = false;
             document.body.appendChild(renderer.domElement);
 
@@ -101,18 +112,43 @@
             animate(); window.addEventListener('resize', onResize);
         }
 
-        // --- 主场景设置 ---
+        // --- 主场景设置 (添加灯光和环境) ---
         function setupMainScene() {
             mainScene = new THREE.Scene();
-            // 添加雾效增强体积感和景深
-            mainScene.fog = new THREE.FogExp2(0x000000, 0.02);
+            // 添加环境雾
+            mainScene.fog = new THREE.FogExp2(0x111111, 0.03);
+            
             mainCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
             mainCamera.position.z = 7;
+
+            // --- 灯光系统 (为金属提供光泽) ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3); // 基础环境光
+            mainScene.add(ambientLight);
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.5); // 主光源
+            dirLight1.position.set(5, 10, 7);
+            mainScene.add(dirLight1);
+            const dirLight2 = new THREE.DirectionalLight(0xaabbff, 0.8); // 冷色补光
+            dirLight2.position.set(-5, -5, -5);
+            mainScene.add(dirLight2);
+
+            // --- 生成简单的环境贴图 (用于金属反射) ---
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            pmremGenerator.compileEquirectangularShader();
+            // 创建一个简单的场景作为反射源
+            const envScene = new THREE.Scene();
+            envScene.background = new THREE.Color(0x444444);
+            const boxGeo = new THREE.BoxGeometry(10, 10, 10);
+            const boxMat = new THREE.MeshBasicMaterial({ color: 0xaaaaaa, wireframe: true });
+            envScene.add(new THREE.Mesh(boxGeo, boxMat));
+            const envMap = pmremGenerator.fromScene(envScene).texture;
+            mainScene.environment = envMap; // 设置为场景环境
+            // pmremGenerator.dispose(); // 清理生成器
+
             particleContainer = new THREE.Group(); mainScene.add(particleContainer);
-            createParticleSystem();
+            createInstancedSystem();
         }
 
-        // --- 视频场景设置 (灰度) ---
+        // --- 视频场景设置 (灰度 - 保持不变) ---
         function setupVideoScene() {
             videoScene = new THREE.Scene(); videoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
             const videoTexture = new THREE.VideoTexture(video); videoTexture.colorSpace = THREE.SRGBColorSpace;
@@ -121,158 +157,117 @@
                 vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
                 fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv; void main() {
                         vec4 color = texture2D(tDiffuse, vUv); float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                        gray = smoothstep(0.1, 0.8, gray); // 提高对比度
-                        gl_FragColor = vec4(gray*0.6, gray*1.0, gray*0.7, 1.0); // 微调为偏绿色调的灰度
+                        gray = smoothstep(0.1, 0.8, gray); 
+                        gl_FragColor = vec4(vec3(gray), 1.0); // 纯黑白灰度
                     }`, depthTest: false, depthWrite: false
             });
             videoMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), grayMaterial); videoScene.add(videoMesh);
         }
 
-        // --- 粒子系统核心 (Shader绘制小球 & 三色霓虹) ---
-        function createParticleSystem() {
-            const geometry = new THREE.BufferGeometry();
-            const posArray = new Float32Array(config.particleCount * 3);
-            const colorArray = new Float32Array(config.particleCount * 3);
+        // --- 核心升级：InstancedMesh 金属方块系统 ---
+        function createInstancedSystem() {
+            // 1. 创建单一的立方体几何体
+            const s = config.particleSize;
+            cubeGeometry = new THREE.BoxGeometry(s, s, s); 
+
+            // 2. 创建标准物理材质 (金属)
+            cubeMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffffff, // 基色 (会被实例颜色覆盖)
+                metalness: 0.9,  // 高金属度
+                roughness: 0.15, // 低粗糙度 (光滑)
+                envMapIntensity: 1.0 // 环境反射强度
+            });
+
+            // 3. 创建 InstancedMesh
+            instancedMesh = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, config.particleCount);
+            instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // 设置为动态更新
+
+            // 初始化数据数组
+            currentPositions = new Float32Array(config.particleCount * 3);
             targetPositions = new Float32Array(config.particleCount * 3);
             velocities = new Array(config.particleCount).fill().map(() => new THREE.Vector3());
 
             // 颜色准备
-            const cDom = new THREE.Color(config.colorDominant);
-            const cAcc1 = new THREE.Color(config.colorAccent1);
-            const cAcc2 = new THREE.Color(config.colorAccent2);
+            const cMetal1 = new THREE.Color(config.colorMetal1);
+            const cMetal2 = new THREE.Color(config.colorMetal2);
+            const cMetal3 = new THREE.Color(config.colorMetal3);
 
             for (let i = 0; i < config.particleCount; i++) {
-                // 初始散落位置
-                posArray[i*3] = (Math.random()-0.5)*20; posArray[i*3+1] = (Math.random()-0.5)*20; posArray[i*3+2] = (Math.random()-0.5)*20;
+                // 初始随机位置
+                const ix = (Math.random()-0.5)*30; const iy = (Math.random()-0.5)*30; const iz = (Math.random()-0.5)*30;
+                currentPositions[i*3] = ix; currentPositions[i*3+1] = iy; currentPositions[i*3+2] = iz;
                 
-                // 颜色分配逻辑 (绿色主导)
+                // 设置初始矩阵 (位置 + 随机旋转)
+                dummyObject.position.set(ix, iy, iz);
+                dummyObject.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                dummyObject.updateMatrix();
+                instancedMesh.setMatrixAt(i, dummyObject.matrix);
+
+                // 颜色分配 (金属色)
                 let finalColor;
                 const rand = Math.random();
-                if (rand < 0.60) finalColor = cDom.clone(); // 60% 主导绿
-                else if (rand < 0.85) finalColor = cAcc1.clone(); // 25% 辅助青
-                else finalColor = cAcc2.clone(); // 15% 点缀粉
-
-                // 增加亮度随机性，模拟闪烁和深度
-                finalColor.multiplyScalar(0.5 + Math.random() * 1.0);
+                if (rand < 0.4) finalColor = cMetal1;      // 40% 金
+                else if (rand < 0.75) finalColor = cMetal2; // 35% 银
+                else finalColor = cMetal3;                 // 25% 铜/钢
                 
-                colorArray[i*3] = finalColor.r; colorArray[i*3+1] = finalColor.g; colorArray[i*3+2] = finalColor.b;
+                // 稍微调整亮度增加变化
+                dummyColor.copy(finalColor).multiplyScalar(0.8 + Math.random() * 0.4);
+                instancedMesh.setColorAt(i, dummyColor);
             }
 
-            geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+            instancedMesh.instanceMatrix.needsUpdate = true; // 重要：通知 GPU 更新矩阵
+            instancedMesh.instanceColor.needsUpdate = true;  // 重要：通知 GPU 更新颜色
 
-            // 使用 ShaderMaterial 在片元着色器中绘制柔和的小球
-            material = new THREE.ShaderMaterial({
-                uniforms: { scale: { value: window.innerHeight / 2.0 }, uSize: { value: config.particleSize } },
-                vertexShader: `
-                    attribute vec3 color; varying vec3 vColor; uniform float uSize;
-                    void main() { vColor = color; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                        // 根据距离调整大小，增加体积感
-                        gl_PointSize = uSize * (300.0 / -mvPosition.z); gl_Position = projectionMatrix * mvPosition; }
-                `,
-                fragmentShader: `
-                    varying vec3 vColor;
-                    void main() {
-                        // 将点坐标从[0,1]映射到[-1,1]
-                        vec2 cxy = 2.0 * gl_PointCoord - 1.0;
-                        float r = dot(cxy, cxy);
-                        // 柔和圆形边缘 (模拟发光小球)
-                        float delta = fwidth(r); float alpha = 1.0 - smoothstep(1.0 - delta, 1.0 + delta, r);
-                        if (alpha < 0.1) discard;
-                        // 中心高亮
-                        float glow = 1.0 - smoothstep(0.0, 0.8, r);
-                        gl_FragColor = vec4(vColor * (0.8 + glow * 0.5), alpha);
-                    }
-                `,
-                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
-            });
-            particles = new THREE.Points(geometry, material); particleContainer.add(particles);
+            particleContainer.add(instancedMesh);
             generateShape(0);
         }
 
-        // --- 具象化形状生成逻辑 (更复杂的数学模型) ---
+        // --- 具象化形状生成逻辑 (保持不变) ---
         function generateShape(index) {
-            const count = config.particleCount;
-            const newTargets = new Float32Array(count * 3);
-            // 辅助函数：随机点在一个范围内
+            const count = config.particleCount; const newTargets = new Float32Array(count * 3);
             const randSpread = (center, spread) => center + (Math.random() - 0.5) * spread;
-            // 辅助函数：填充圆柱体
             const fillCylinder = (idx, startIdx, endIdx, height, radiusTop, radiusBottom, centerY, spread=0.1) => {
                 for(let i=startIdx; i<endIdx; i++) {
-                    const t = (i - startIdx) / (endIdx - startIdx); // 0-1 height normalize
-                    const y = (t - 0.5) * height + centerY;
-                    const r = radiusBottom * (1-t) + radiusTop * t;
-                    const angle = Math.random() * Math.PI * 2;
-                    const rRandom = Math.sqrt(Math.random()) * r; // 均匀分布在圆内
-                    newTargets[i*3] = randSpread(Math.cos(angle)*rRandom, spread);
-                    newTargets[i*3+1] = randSpread(y, spread);
-                    newTargets[i*3+2] = randSpread(Math.sin(angle)*rRandom, spread);
+                    const t = (i - startIdx) / (endIdx - startIdx); const y = (t - 0.5) * height + centerY;
+                    const r = radiusBottom * (1-t) + radiusTop * t; const angle = Math.random() * Math.PI * 2; const rRandom = Math.sqrt(Math.random()) * r;
+                    newTargets[i*3] = randSpread(Math.cos(angle)*rRandom, spread); newTargets[i*3+1] = randSpread(y, spread); newTargets[i*3+2] = randSpread(Math.sin(angle)*rRandom, spread);
                 }
             }
-            // 辅助函数：填充球体
             const fillSphere = (idx, startIdx, endIdx, radius, centerX, centerY, centerZ, spread=0.1) => {
                  for(let i=startIdx; i<endIdx; i++) {
-                    const u = Math.random(); const v = Math.random();
-                    const theta = 2 * Math.PI * u; const phi = Math.acos(2 * v - 1);
-                    const r = Math.cbrt(Math.random()) * radius; // 均匀分布在球内
-                    newTargets[i*3] = randSpread(centerX + r * Math.sin(phi) * Math.cos(theta), spread);
-                    newTargets[i*3+1] = randSpread(centerY + r * Math.sin(phi) * Math.sin(theta), spread);
-                    newTargets[i*3+2] = randSpread(centerZ + r * Math.cos(phi), spread);
+                    const u = Math.random(); const v = Math.random(); const theta = 2 * Math.PI * u; const phi = Math.acos(2 * v - 1); const r = Math.cbrt(Math.random()) * radius;
+                    newTargets[i*3] = randSpread(centerX + r * Math.sin(phi) * Math.cos(theta), spread); newTargets[i*3+1] = randSpread(centerY + r * Math.sin(phi) * Math.sin(theta), spread); newTargets[i*3+2] = randSpread(centerZ + r * Math.cos(phi), spread);
                 }
             }
-
             switch(index % 5) {
-                case 0: // 形象化圣诞树 (树干 + 分层树冠)
-                    const trunkCount = Math.floor(count * 0.15); fillCylinder(0, 0, trunkCount, 2.0, 0.4, 0.5, -2.5, 0.2); // 树干
-                    const layer1Count = Math.floor(count * 0.35); fillCylinder(0, trunkCount, trunkCount+layer1Count, 2.5, 1.5, 2.5, -1.0, 0.3); // 底层
-                    const layer2Count = Math.floor(count * 0.30); fillCylinder(0, trunkCount+layer1Count, trunkCount+layer1Count+layer2Count, 2.2, 0.8, 1.8, 1.0, 0.3); // 中层
-                    fillCylinder(0, trunkCount+layer1Count+layer2Count, count, 1.8, 0.0, 1.0, 2.8, 0.2); // 顶层
-                    break;
-                case 1: // 形象化雪人 (身体 + 头 + 手臂 + 帽子)
-                    const bodyCount = Math.floor(count*0.4); fillSphere(0, 0, bodyCount, 1.8, 0, -1.8, 0, 0.2); // 身体
-                    const headCount = Math.floor(count*0.25); fillSphere(0, bodyCount, bodyCount+headCount, 1.1, 0, 0.8, 0, 0.15); // 头
-                    const armCount = Math.floor(count*0.1); // 手臂 (用细长圆柱模拟)
-                    fillCylinder(0, bodyCount+headCount, bodyCount+headCount+armCount, 2.0, 0.15, 0.15, -0.5, 0.1); // 左臂需旋转，这里简化为横向
-                    for(let i=bodyCount+headCount; i<bodyCount+headCount+armCount;i++) newTargets[i*3] -= 2.0; // 简单平移
-                    const hatBaseCount = Math.floor(count*0.1); fillCylinder(0, count-hatBaseCount-Math.floor(count*0.05), count-Math.floor(count*0.05), 0.1, 1.2, 1.2, 1.8, 0.05); // 帽檐
-                    fillCylinder(0, count-Math.floor(count*0.05), count, 0.8, 0.7, 0.7, 2.3, 0.05); // 帽顶
-                    break;
-                case 2: // 形象化礼盒 (实心立方体 + 明显的十字丝带)
-                    const ribbonCount = Math.floor(count * 0.25);
-                    const boxSize = 2.2;
-                    for(let i=0; i<count-ribbonCount; i++) { // 盒子主体
-                        newTargets[i*3]=randSpread(0, boxSize*2); newTargets[i*3+1]=randSpread(0, boxSize*2); newTargets[i*3+2]=randSpread(0, boxSize*2);
-                    }
-                    for(let i=count-ribbonCount; i<count; i++) { // 丝带
-                        const t = (i-(count-ribbonCount))/ribbonCount; const ribbonWidth = 0.4;
-                        if(t<0.5) { newTargets[i*3]=randSpread(0, boxSize*2.1); newTargets[i*3+1]=randSpread(0, ribbonWidth); newTargets[i*3+2]=boxSize+randSpread(0,0.1); } // 横向
-                        else { newTargets[i*3]=randSpread(0, ribbonWidth); newTargets[i*3+1]=randSpread(0, boxSize*2.1); newTargets[i*3+2]=boxSize+randSpread(0,0.1); } // 纵向
-                    }
-                    break;
-                case 3: // 形象化鹿角 (更自然的主干和分叉)
-                    for(let i=0; i<count; i++) {
-                        const t=i/count; const side=t>0.5?1:-1; let t2=(t%0.5)*2;
-                        let x,y,z, spread=0.15;
-                        // 主干曲线
-                        const mainAngle = (t2*Math.PI*0.6)-Math.PI/2.5; const r=2.8;
-                        x = Math.cos(mainAngle)*r*side + (side*0.8); y = Math.sin(mainAngle)*r*1.3 - 0.5; z = (Math.random()-0.5)*0.5;
-                        // 分叉
+                case 0: // 树
+                    const trunkCount = Math.floor(count * 0.15); fillCylinder(0, 0, trunkCount, 2.0, 0.4, 0.5, -2.5, 0.2);
+                    const layer1Count = Math.floor(count * 0.35); fillCylinder(0, trunkCount, trunkCount+layer1Count, 2.5, 1.5, 2.5, -1.0, 0.3);
+                    const layer2Count = Math.floor(count * 0.30); fillCylinder(0, trunkCount+layer1Count, trunkCount+layer1Count+layer2Count, 2.2, 0.8, 1.8, 1.0, 0.3);
+                    fillCylinder(0, trunkCount+layer1Count+layer2Count, count, 1.8, 0.0, 1.0, 2.8, 0.2); break;
+                case 1: // 雪人
+                    const bodyCount = Math.floor(count*0.4); fillSphere(0, 0, bodyCount, 1.8, 0, -1.8, 0, 0.2);
+                    const headCount = Math.floor(count*0.25); fillSphere(0, bodyCount, bodyCount+headCount, 1.1, 0, 0.8, 0, 0.15);
+                    const armCount = Math.floor(count*0.1); fillCylinder(0, bodyCount+headCount, bodyCount+headCount+armCount, 2.0, 0.15, 0.15, -0.5, 0.1); for(let i=bodyCount+headCount; i<bodyCount+headCount+armCount;i++) newTargets[i*3] -= 2.0;
+                    const hatBaseCount = Math.floor(count*0.1); fillCylinder(0, count-hatBaseCount-Math.floor(count*0.05), count-Math.floor(count*0.05), 0.1, 1.2, 1.2, 1.8, 0.05);
+                    fillCylinder(0, count-Math.floor(count*0.05), count, 0.8, 0.7, 0.7, 2.3, 0.05); break;
+                case 2: // 礼盒
+                    const ribbonCount = Math.floor(count * 0.25); const boxSize = 2.2;
+                    for(let i=0; i<count-ribbonCount; i++) { newTargets[i*3]=randSpread(0, boxSize*2); newTargets[i*3+1]=randSpread(0, boxSize*2); newTargets[i*3+2]=randSpread(0, boxSize*2); }
+                    for(let i=count-ribbonCount; i<count; i++) { const t = (i-(count-ribbonCount))/ribbonCount; const ribbonWidth = 0.4;
+                        if(t<0.5) { newTargets[i*3]=randSpread(0, boxSize*2.1); newTargets[i*3+1]=randSpread(0, ribbonWidth); newTargets[i*3+2]=boxSize+randSpread(0,0.1); }
+                        else { newTargets[i*3]=randSpread(0, ribbonWidth); newTargets[i*3+1]=randSpread(0, boxSize*2.1); newTargets[i*3+2]=boxSize+randSpread(0,0.1); } } break;
+                case 3: // 鹿角
+                    for(let i=0; i<count; i++) { const t=i/count; const side=t>0.5?1:-1; let t2=(t%0.5)*2; let x,y,z, spread=0.15;
+                        const mainAngle = (t2*Math.PI*0.6)-Math.PI/2.5; const r=2.8; x = Math.cos(mainAngle)*r*side + (side*0.8); y = Math.sin(mainAngle)*r*1.3 - 0.5; z = (Math.random()-0.5)*0.5;
                         if (t2>0.3 && t2<0.5 && Math.random()>0.4) { x+=Math.random()*1.2*side; y+=Math.random()*1.5; spread=0.1;}
                         if (t2>0.6 && t2<0.8 && Math.random()>0.4) { x+=Math.random()*0.8*side; y+=Math.random()*1.0; spread=0.1;}
-                        newTargets[i*3]=randSpread(x,spread); newTargets[i*3+1]=randSpread(y,spread); newTargets[i*3+2]=randSpread(z,spread);
-                    } break;
-                case 4: // 形象化糖果棒 (明显的螺旋条纹)
-                    for(let i=0; i<count; i++) {
-                        const t=i/count; let x,y,z, tubeRadius=0.45;
-                        // 使用 modulo 产生条纹效果
-                        const stripeAngle = t * Math.PI * 20;
-                        const isInStripe = Math.sin(stripeAngle) > 0; // 简单的条纹分组
-                        tubeRadius *= isInStripe ? 1.1 : 0.9; // 条纹处稍微粗一点
+                        newTargets[i*3]=randSpread(x,spread); newTargets[i*3+1]=randSpread(y,spread); newTargets[i*3+2]=randSpread(z,spread); } break;
+                case 4: // 糖果棒
+                    for(let i=0; i<count; i++) { const t=i/count; let x,y,z, tubeRadius=0.45; const stripeAngle = t * Math.PI * 20; const isInStripe = Math.sin(stripeAngle) > 0; tubeRadius *= isInStripe ? 1.1 : 0.9;
                         const angleTube = Math.random()*Math.PI*2; const tx=Math.cos(angleTube)*tubeRadius; const tz=Math.sin(angleTube)*tubeRadius;
-                        if(t<0.65){ x=tx; y=(t/0.65)*4-2.0; z=tz; } // 直柄
-                        else{ const a=((t-0.65)/0.35)*Math.PI*1.1, r=1.2; x=r*Math.cos(a)-r+tx; y=2.0+r*Math.sin(a)+tz*0.2; z=tz+Math.sin(a)*0.3; } // 弯钩
-                        newTargets[i*3]=randSpread(x,0.1); newTargets[i*3+1]=randSpread(y,0.1); newTargets[i*3+2]=randSpread(z,0.1);
-                    } break;
+                        if(t<0.65){ x=tx; y=(t/0.65)*4-2.0; z=tz; } else{ const a=((t-0.65)/0.35)*Math.PI*1.1, r=1.2; x=r*Math.cos(a)-r+tx; y=2.0+r*Math.sin(a)+tz*0.2; z=tz+Math.sin(a)*0.3; }
+                        newTargets[i*3]=randSpread(x,0.1); newTargets[i*3+1]=randSpread(y,0.1); newTargets[i*3+2]=randSpread(z,0.1); } break;
             }
             for(let i=0; i<count*3; i++) targetPositions[i] = newTargets[i];
         }
@@ -283,7 +278,7 @@
             handLandmarker = await HandLandmarker.createFromOptions(vision, { baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "GPU" }, runningMode: "VIDEO", numHands: 1 });
         }
         function setupSkeleton() {
-            skeletonLines = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(HandLandmarker.HAND_CONNECTIONS.length*6), 3)), new THREE.LineBasicMaterial({ color: 0x00ff44, depthTest: false, transparent: true, opacity: 0.6 })); mainScene.add(skeletonLines);
+            skeletonLines = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(HandLandmarker.HAND_CONNECTIONS.length*6), 3)), new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.4 })); mainScene.add(skeletonLines);
         }
         function detectGestures(landmarks) {
             const hudHand = document.getElementById('hand-state');
@@ -304,32 +299,44 @@
         }
         function triggerExplosion() { if (state.isExploding) return; state.isExploding = true; for(let i=0; i<config.particleCount; i++) velocities[i].set((Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce); setTimeout(() => { state.currentShapeIndex++; generateShape(state.currentShapeIndex); state.isExploding = false; }, 500); }
 
-        // --- 物理更新 & 渲染循环 ---
+        // --- 物理更新 & 渲染循环 (适配 InstancedMesh) ---
         function updatePhysics(handPos, delta) {
             particleContainer.rotation.y += (state.targetRotation.y - particleContainer.rotation.y) * 0.1;
             particleContainer.rotation.x += (state.targetRotation.x - particleContainer.rotation.x) * 0.1;
-            const pos = particles.geometry.attributes.position.array;
+            
+            // 获取当前实例的矩阵
             for (let i = 0; i < config.particleCount; i++) {
-                let vx=velocities[i].x, vy=velocities[i].y, vz=velocities[i].z; const idx=i*3, px=pos[idx], py=pos[idx+1], pz=pos[idx+2];
+                let vx=velocities[i].x, vy=velocities[i].y, vz=velocities[i].z;
+                const idx=i*3;
+                let px=currentPositions[idx], py=currentPositions[idx+1], pz=currentPositions[idx+2];
+                
                 if (!state.isExploding) { vx += (targetPositions[idx]-px)*config.returnSpeed; vy += (targetPositions[idx+1]-py)*config.returnSpeed; vz += (targetPositions[idx+2]-pz)*config.returnSpeed; }
-                if (state.handDetected && handPos && state.gesture === 'HOVER') { const dx=px-handPos.x, dy=py-handPos.y, distSq=dx*dx+dy*dy; if(distSq<3.0){const dist=Math.sqrt(distSq), f=(1.8-dist)*config.scatterStrength; vx+=(dx/dist)*f; vy+=(dy/dist)*f;}}
-                vx*=0.92; vy*=0.92; vz*=0.92; pos[idx]+=vx; pos[idx+1]+=vy; pos[idx+2]+=vz; velocities[i].set(vx, vy, vz);
-            } particles.geometry.attributes.position.needsUpdate = true;
+                if (state.handDetected && handPos && state.gesture === 'HOVER') { const dx=px-handPos.x, dy=py-handPos.y, distSq=dx*dx+dy*dy; if(distSq<3.5){const dist=Math.sqrt(distSq), f=(1.9-dist)*config.scatterStrength; vx+=(dx/dist)*f; vy+=(dy/dist)*f;}}
+                vx*=0.93; vy*=0.93; vz*=0.93; 
+                px+=vx; py+=vy; pz+=vz;
+                currentPositions[idx]=px; currentPositions[idx+1]=py; currentPositions[idx+2]=pz; velocities[i].set(vx, vy, vz);
+
+                // 更新矩阵 (重要：这里不再是直接修改 attribute，而是更新矩阵)
+                // 为了性能，我们只更新位置，保持初始的随机旋转不变
+                instancedMesh.getMatrixAt(i, dummyObject.matrix); // 获取当前矩阵
+                dummyObject.matrix.decompose(dummyObject.position, dummyObject.quaternion, dummyObject.scale); // 分解
+                dummyObject.position.set(px, py, pz); // 更新位置
+                dummyObject.updateMatrix(); // 重组矩阵
+                instancedMesh.setMatrixAt(i, dummyObject.matrix); // 设置回实例
+            }
+            // 通知 GPU 矩阵已更新
+            instancedMesh.instanceMatrix.needsUpdate = true;
         }
+
         function setupGUI() {
-            const gui = new GUI({ title: 'VOLUMETRIC_CTRL' });
+            const gui = new GUI({ title: 'METALLIC_CTRL' });
             gui.add(config, 'scatterStrength', 0, 5).name('REPULSION'); gui.add(config, 'returnSpeed', 0.01, 0.15).name('COHESION');
-            gui.add(config, 'particleSize', 0.1, 0.5).name('PARTICLE_SIZE').onChange(v => material.uniforms.uSize.value = v);
-            gui.addColor(config, 'colorDominant').name('COLOR_MAIN').onChange(updateColors);
+            // 注意：InstancedMesh改变大小比较复杂，这里简化为不可调，或需要重新生成Geometry
+            // gui.add(config, 'particleSize', 0.05, 0.3).name('CUBE_SIZE'); 
+            gui.addColor(config, 'colorMetal1').name('GOLD_COLOR');
         }
-        function updateColors() {
-            const c1=new THREE.Color(config.colorDominant), c2=new THREE.Color(config.colorAccent1), c3=new THREE.Color(config.colorAccent2), colors=particles.geometry.attributes.color.array;
-            for(let i=0; i<config.particleCount; i++) { 
-                let fc; const r=Math.random(); if(r<0.6)fc=c1.clone(); else if(r<0.85)fc=c2.clone(); else fc=c3.clone();
-                fc.multiplyScalar(0.5+Math.random()*1.0); colors[i*3]=fc.r; colors[i*3+1]=fc.g; colors[i*3+2]=fc.b; 
-            } particles.geometry.attributes.color.needsUpdate = true;
-        }
-        function onResize() { const w=window.innerWidth, h=window.innerHeight; renderer.setSize(w, h); mainCamera.aspect=w/h; mainCamera.updateProjectionMatrix(); material.uniforms.scale.value=h/2.0; }
+
+        function onResize() { const w=window.innerWidth, h=window.innerHeight; renderer.setSize(w, h); mainCamera.aspect=w/h; mainCamera.updateProjectionMatrix(); }
 
         let lastTime = 0;
         function animate(time) {
