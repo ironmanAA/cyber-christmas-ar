@@ -2,477 +2,554 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Cyberpunk ASCII AR - Dual View</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>糖果果作业管理 🍬</title>
     <style>
-        /* --- 视觉风格：极简、黑白、科技感 --- */
+        :root {
+            --primary: #FF9A9E;
+            --secondary: #FECFEF;
+            --accent: #a18cd1;
+            --text: #555;
+            --bg: #fdfbf7;
+            --card-bg: #ffffff;
+            --success: #84fab0;
+        }
+
         body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
             margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* 顶部导航与积分栏 */
+        header {
+            background: linear-gradient(120deg, var(--primary) 0%, var(--secondary) 100%);
+            padding: 20px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; display: flex; align-items: center; gap: 10px; }
+        
+        .score-board {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* 导航切换 */
+        .nav-tabs {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            gap: 20px;
+        }
+
+        .tab-btn {
+            background: white;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 10px 30px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 10px rgba(255, 154, 158, 0.3);
+        }
+
+        /* 主容器 */
+        main {
+            max-width: 800px;
+            width: 95%;
+            margin: 0 auto;
+            flex: 1;
+            padding-bottom: 50px;
+        }
+
+        .section { display: none; animation: fadeIn 0.5s; }
+        .section.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 作业添加区 */
+        .add-task-box {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            border: 2px dashed var(--accent);
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr auto;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .input-group { grid-template-columns: 1fr; }
+        }
+
+        input, select {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+        }
+
+        button.btn-add {
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* 作业列表 */
+        .task-list { list-style: none; padding: 0; }
+        
+        .task-card {
+            background: white;
+            border-radius: 15px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.03);
+            border-left: 5px solid #ddd;
+            transition: transform 0.2s;
+        }
+
+        .task-card:hover { transform: translateY(-3px); }
+
+        .task-info h3 { margin: 0 0 5px 0; color: #333; }
+        .task-info p { margin: 0; font-size: 0.9rem; color: #888; }
+        .task-subject { 
+            display: inline-block; 
+            background: #eee; 
+            padding: 2px 8px; 
+            border-radius: 4px; 
+            font-size: 0.8rem; 
+            margin-right: 5px;
+            color: #555;
+        }
+
+        /* 状态样式 */
+        .status-pending { border-left-color: var(--accent); }
+        .status-waiting { border-left-color: #ffd700; background: #fffdf0; }
+        .status-done { border-left-color: var(--success); background: #f0fff4; opacity: 0.8; }
+
+        .action-btn {
+            border: none;
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .btn-finish { background: white; border: 2px solid var(--accent); color: var(--accent); }
+        .btn-finish:hover { background: var(--accent); color: white; }
+
+        .btn-verify { background: #ffd700; color: #7a6a00; border: none; }
+        
+        .done-badge { color: var(--success); font-weight: bold; display: flex; align-items: center; gap: 5px; }
+
+        /* 商城网格 */
+        .mall-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            position: relative;
             overflow: hidden;
-            background-color: #000; /* 纯黑背景 */
-            font-family: 'Courier New', Courier, monospace;
-            color: #fff;
         }
 
-        #loading {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center; font-size: 14px; letter-spacing: 2px;
-            z-index: 999; pointer-events: none; color: #0f0;
+        .product-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
+        .product-price { color: var(--primary); font-weight: bold; margin: 10px 0; }
+        
+        .btn-buy {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        
+        .btn-buy:disabled { background: #ddd; cursor: not-allowed; }
+
+        /* 弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            width: 300px;
+            animation: popIn 0.3s;
+        }
+        @keyframes popIn { from { transform: scale(0.8); } to { transform: scale(1); } }
+        
+        .flower-anim {
+            position: fixed;
+            pointer-events: none;
+            font-size: 50px;
+            animation: floatUp 1.5s ease-out forwards;
+            z-index: 2000;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(0.5); }
+            50% { transform: translateY(-100px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-200px) scale(1); }
         }
 
-        #video-feed { display: none; }
-
-        /* GUI 自定义 */
-        .lil-gui.root { position: absolute; top: 20px; left: 20px; z-index: 100; }
-        .lil-gui { 
-            --background-color: rgba(20, 20, 20, 0.8);
-            --text-color: #0f0;
-            --title-background-color: #111;
-            border: 1px solid #0f0 !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
+        /* 简单提示 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            opacity: 0;
+            transition: opacity 0.3s;
         }
-        .lil-gui .close-button { display: none; }
 
-        /* 数据展示层 */
-        #hud {
-            position: absolute; bottom: 20px; left: 20px;
-            pointer-events: none; font-size: 12px; line-height: 1.5;
-            text-shadow: 0 0 2px #0f0; opacity: 0.8;
-        }
-        .highlight { color: #0f0; }
-        .alert { color: #f0f; }
     </style>
 </head>
 <body>
 
-    <div id="loading">SYSTEM INITIALIZING...<br>[LOADING NEURAL NETWORKS]</div>
-    <video id="video-feed" autoplay playsinline></video>
-    
-    <div id="hud">
-        STATUS: <span id="status-text" class="highlight">AWAITING INPUT</span><br>
-        HAND: <span id="hand-state">NONE</span><br>
-        PARTICLES: <span id="particle-count">0</span><br>
-        FPS: <span id="fps-counter">0</span>
+<header>
+    <h1>🍬 糖果果作业管理</h1>
+    <div class="score-board">
+        <span>🌺</span> <span id="score-display">0</span> 分
+    </div>
+</header>
+
+<div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('homework')">📝 作业本</button>
+    <button class="tab-btn" onclick="switchTab('mall')">🎁 兑换商城</button>
+</div>
+
+<main>
+    <div id="homework" class="section active">
+        <div class="add-task-box">
+            <h3>✨ 添加新任务</h3>
+            <div class="input-group">
+                <select id="subject-input">
+                    <option value="语文">📕 语文</option>
+                    <option value="数学">📐 数学</option>
+                    <option value="英语">🔤 英语</option>
+                    <option value="科学">🔬 科学</option>
+                    <option value="其他">🎨 其他</option>
+                </select>
+                <input type="text" id="task-desc" placeholder="例如：背诵古诗《咏鹅》">
+                <input type="datetime-local" id="task-deadline">
+                <button class="btn-add" onclick="addTask()">添加</button>
+            </div>
+        </div>
+
+        <ul class="task-list" id="task-list-container">
+            </ul>
     </div>
 
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-        import { FilesetResolver, HandLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.js';
-        import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.esm.min.js';
+    <div id="mall" class="section">
+        <div style="background: #fff3e0; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #d84315;">
+            💡 提示：努力做作业赚取小红花，可以兑换下面的奖励哦！
+        </div>
+        <div class="mall-grid" id="mall-container">
+            </div>
+    </div>
+</main>
 
-        // --- 全局配置 ---
-        const config = {
-            particleCount: 15000, // 增加粒子数量
-            particleSize: 0.12,   // 稍微调小单个粒子尺寸以适应高密度
-            scatterStrength: 2.0, // 悬停排斥力度
-            returnSpeed: 0.08,    // 粒子回归速度
-            explosionForce: 3.5,  // 握拳爆炸力度
-            debugSkeleton: true,  // 显示骨骼
-            color1: '#ff0055',    // 霓虹色 1
-            color2: '#00ffaa',    // 霓虹色 2
-            videoScale: 0.25,     // 右上角视频窗口占比 (25%)
+<div id="parent-modal" class="modal">
+    <div class="modal-content">
+        <h2>🔒 家长确认</h2>
+        <p>请输入确认码（默认8888）</p>
+        <input type="password" id="parent-pin" maxlength="4" style="text-align:center; letter-spacing: 5px; font-size: 20px; width: 100px; margin-bottom: 20px;">
+        <div>
+            <button class="btn-add" style="background:#ddd; color:#333" onclick="closeModal()">取消</button>
+            <button class="btn-add" onclick="verifyParent()">确定</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast">提示信息</div>
+
+<script>
+    // --- 数据初始化 ---
+    const DEFAULT_PIN = "8888"; // 家长默认密码
+    let appData = {
+        score: 0,
+        tasks: [],
+        products: [
+            { id: 1, name: "看电视 30分钟", price: 5, icon: "📺" },
+            { id: 2, name: "吃冰淇淋", price: 10, icon: "🍦" },
+            { id: 3, name: "买一个盲盒", price: 50, icon: "🎁" },
+            { id: 4, name: "去游乐园", price: 200, icon: "🎡" },
+            { id: 5, name: "玩平板 1小时", price: 15, icon: "📱" },
+            { id: 6, name: "免做家务卡", price: 20, icon: "🎫" }
+        ]
+    };
+
+    // 页面加载读取数据
+    window.onload = function() {
+        const savedData = localStorage.getItem('tangguoguoData');
+        if (savedData) {
+            appData = JSON.parse(savedData);
+        }
+        // 设置默认时间为当前时间
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('task-deadline').value = now.toISOString().slice(0,16);
+        
+        renderAll();
+    };
+
+    function saveData() {
+        localStorage.setItem('tangguoguoData', JSON.stringify(appData));
+        renderAll();
+    }
+
+    function renderAll() {
+        document.getElementById('score-display').innerText = appData.score;
+        renderTasks();
+        renderMall();
+    }
+
+    // --- 界面切换 ---
+    function switchTab(tabName) {
+        document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(tabName).classList.add('active');
+        // 简单粗暴的高亮逻辑
+        const btns = document.querySelectorAll('.tab-btn');
+        if(tabName === 'homework') btns[0].classList.add('active');
+        else btns[1].classList.add('active');
+    }
+
+    // --- 作业逻辑 ---
+    function addTask() {
+        const subject = document.getElementById('subject-input').value;
+        const desc = document.getElementById('task-desc').value;
+        const deadline = document.getElementById('task-deadline').value;
+
+        if (!desc) {
+            showToast("请输入作业内容哦！");
+            return;
+        }
+
+        const newTask = {
+            id: Date.now(),
+            subject: subject,
+            desc: desc,
+            deadline: deadline,
+            status: 'pending', // pending, waiting, done
+            createTime: new Date().getTime()
         };
 
-        // --- 状态管理 ---
-        const state = {
-            currentShapeIndex: 0,
-            isExploding: false,
-            handDetected: false,
-            gesture: 'NONE', 
-            // 多轴旋转控制状态
-            isPinching: false,
-            pinchStartPos: new THREE.Vector2(),
-            targetRotation: new THREE.Euler(0, 0, 0),
-            videoReady: false
-        };
+        appData.tasks.unshift(newTask); // 新任务在最前
+        document.getElementById('task-desc').value = ''; // 清空输入
+        saveData();
+        showToast("作业添加成功！加油！");
+    }
 
-        // --- Three.js 核心变量 ---
-        let renderer;
-        // 主场景 (粒子)
-        let mainScene, mainCamera, particleContainer, particles, material;
-        // 视频场景 (右上角灰度)
-        let videoScene, videoCamera, videoMesh;
-        
-        let video, handLandmarker, skeletonLines;
-        
-        // 粒子数据
-        let targetPositions, velocities, colors;
+    function renderTasks() {
+        const list = document.getElementById('task-list-container');
+        list.innerHTML = '';
 
-        // --- 初始化 ---
-        async function init() {
-            // 1. 视频流设定
-            video = document.getElementById('video-feed');
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'user', width: 1280, height: 720 } 
-                });
-                video.srcObject = stream;
-                await new Promise(r => video.onloadedmetadata = r);
-                video.play();
-                state.videoReady = true;
-            } catch (e) {
-                document.getElementById('loading').innerHTML = "CAMERA ACCESS DENIED";
-                return;
-            }
-
-            // 2. Renderer 设定 (启用手动清除以支持双视口)
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.setClearColor(0x000000, 1); // 纯黑背景
-            renderer.autoClear = false; // 重要：手动管理渲染清除
-            document.body.appendChild(renderer.domElement);
-
-            // 3. 初始化两个场景
-            setupMainScene();
-            setupVideoScene();
-
-            // 4. 初始化 MediaPipe 和辅助工具
-            await setupMediaPipe();
-            setupGUI();
-            setupSkeleton();
-
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('status-text').innerText = "ONLINE";
-            
-            // 5. 启动循环
-            animate();
-            window.addEventListener('resize', onResize);
+        if (appData.tasks.length === 0) {
+            list.innerHTML = '<div style="text-align:center; color:#ccc; padding:20px;">还没有作业哦，去玩一会儿吧~ 🎉</div>';
+            return;
         }
 
-        // --- 主场景设置 (ASCII 粒子) ---
-        function setupMainScene() {
-            mainScene = new THREE.Scene();
-            // mainScene.background = new THREE.Color(0x000000); // 由 renderer.setClearColor 控制
+        appData.tasks.forEach(task => {
+            let statusHtml = '';
+            let cardClass = 'status-pending';
 
-            mainCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-            mainCamera.position.z = 6;
-
-            // 创建一个容器用于旋转整个点云
-            particleContainer = new THREE.Group();
-            mainScene.add(particleContainer);
-
-            createParticleSystem();
-        }
-
-        // --- 视频场景设置 (右上角灰度) ---
-        function setupVideoScene() {
-            videoScene = new THREE.Scene();
-            videoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-            const videoTexture = new THREE.VideoTexture(video);
-            videoTexture.colorSpace = THREE.SRGBColorSpace;
-
-            // 自定义灰度 Shader (同原项目)
-            const grayMaterial = new THREE.ShaderMaterial({
-                uniforms: { tDiffuse: { value: videoTexture } },
-                vertexShader: `
-                    varying vec2 vUv;
-                    void main() { vUv = uv; gl_Position = vec4(position, 1.0); }
-                `,
-                fragmentShader: `
-                    uniform sampler2D tDiffuse;
-                    varying vec2 vUv;
-                    void main() {
-                        vec4 color = texture2D(tDiffuse, vUv);
-                        float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                        // 增加对比度，使其在小窗口更清晰，并带一点绿色调
-                        gray = smoothstep(0.1, 0.8, gray);
-                        gl_FragColor = vec4(gray * 0.8, gray * 1.0, gray * 0.8, 1.0); 
-                    }
-                `,
-                depthTest: false, depthWrite: false
-            });
-            const plane = new THREE.PlaneGeometry(2, 2);
-            videoMesh = new THREE.Mesh(plane, grayMaterial);
-            videoScene.add(videoMesh);
-        }
-
-        // --- 粒子系统核心 (复用原项目逻辑) ---
-        function createParticleSystem() {
-            const geometry = new THREE.BufferGeometry();
-            
-            // ASCII 纹理生成 (同原项目)
-            const spriteSize = 64;
-            const canvas = document.createElement('canvas');
-            canvas.width = spriteSize * 4; canvas.height = spriteSize;
-            const ctx = canvas.getContext('2d');
-            ctx.font = 'bold 40px Courier New'; ctx.fillStyle = '#fff';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ['+', '*', '1', '0'].forEach((char, i) => {
-                ctx.fillText(char, (i * spriteSize) + spriteSize/2, spriteSize/2);
-            });
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.magFilter = THREE.NearestFilter;
-
-            // 初始化数组
-            const posArray = new Float32Array(config.particleCount * 3);
-            const colorArray = new Float32Array(config.particleCount * 3);
-            const sizeArray = new Float32Array(config.particleCount);
-            targetPositions = new Float32Array(config.particleCount * 3);
-            velocities = new Array(config.particleCount).fill().map(() => new THREE.Vector3());
-
-            const c1 = new THREE.Color(config.color1);
-            const c2 = new THREE.Color(config.color2);
-
-            for (let i = 0; i < config.particleCount; i++) {
-                posArray[i*3] = (Math.random() - 0.5) * 15;
-                posArray[i*3+1] = (Math.random() - 0.5) * 15;
-                posArray[i*3+2] = (Math.random() - 0.5) * 15;
-                
-                const mixed = c1.clone().lerp(c2, Math.random());
-                colorArray[i*3] = mixed.r; colorArray[i*3+1] = mixed.g; colorArray[i*3+2] = mixed.b;
-                sizeArray[i] = config.particleSize * (0.5 + Math.random());
-            }
-
-            geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
-            geometry.setAttribute('size', new THREE.BufferAttribute(sizeArray, 1));
-
-            // Shader Material (同原项目)
-            material = new THREE.ShaderMaterial({
-                uniforms: { tex: { value: texture }, scale: { value: window.innerHeight / 2.0 } },
-                vertexShader: `
-                    attribute float size; attribute vec3 color; varying vec3 vColor; varying float vCharIndex;
-                    void main() {
-                        vColor = color; vCharIndex = floor(fract(position.x * 10.0 + position.y * 5.0) * 4.0) * 0.25;
-                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                        gl_PointSize = size * (300.0 / -mvPosition.z); gl_Position = projectionMatrix * mvPosition;
-                    }
-                `,
-                fragmentShader: `
-                    uniform sampler2D tex; varying vec3 vColor; varying float vCharIndex;
-                    void main() {
-                        vec2 uv = gl_PointCoord; float u = uv.x * 0.25 + vCharIndex;
-                        vec4 texColor = texture2D(tex, vec2(u, uv.y));
-                        if (texColor.a < 0.5) discard;
-                        gl_FragColor = vec4(vColor * texColor.rgb, 1.0);
-                    }
-                `,
-                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
-            });
-
-            particles = new THREE.Points(geometry, material);
-            particleContainer.add(particles); // 添加到容器而不是直接添加到场景
-            generateShape(0);
-        }
-
-        // --- 形状生成逻辑 (同原项目, 略微调整参数适配高密度) ---
-        function generateShape(index) {
-            const count = config.particleCount;
-            const newTargets = new Float32Array(count * 3);
-            switch(index % 5) {
-                case 0: // 树
-                    for(let i=0; i<count; i++) {
-                        const t = i / count; const angle = t * Math.PI * 25; const r = (1-t)*2.0; const y = (t-0.5)*5;
-                        newTargets[i*3] = Math.cos(angle)*r; newTargets[i*3+1]=y; newTargets[i*3+2]=Math.sin(angle)*r;
-                    } break;
-                case 1: // 雪人
-                    for(let i=0; i<count; i++) {
-                        let y,r, t=i/count; if(t<0.4){y=-1.5;r=1.2;}else if(t<0.75){y=0.2;r=0.9;}else{y=1.4;r=0.6;}
-                        const u=Math.random(), v=Math.random(), th=2*Math.PI*u, ph=Math.acos(2*v-1);
-                        newTargets[i*3]=r*Math.sin(ph)*Math.cos(th); newTargets[i*3+1]=r*Math.sin(ph)*Math.sin(th)+y; newTargets[i*3+2]=r*Math.cos(ph);
-                    } break;
-                case 2: // 礼盒
-                    for(let i=0; i<count; i++) {
-                        newTargets[i*3]=(Math.random()-0.5)*3; newTargets[i*3+1]=(Math.random()-0.5)*3; newTargets[i*3+2]=(Math.random()-0.5)*3;
-                    } break;
-                case 3: // 鹿角
-                    for(let i=0; i<count; i++) {
-                        const t=i/count, side=t>0.5?1:-1, t2=(t%0.5)*2, angle=(t2*Math.PI)-Math.PI/2;
-                        let x=Math.cos(angle)*2*side+(side*0.5), y=Math.sin(angle)*2, z=(Math.random()-0.5)*0.3;
-                        newTargets[i*3]=x;newTargets[i*3+1]=y;newTargets[i*3+2]=z;
-                    } break;
-                case 4: // 糖果
-                    for(let i=0; i<count; i++) {
-                        const t=i/count; let x,y,z;
-                        if(t<0.7){ x=(Math.random()-0.5)*0.3; y=(t/0.7)*4-2; z=(Math.random()-0.5)*0.3; }
-                        else{ const a=((t-0.7)/0.3)*Math.PI, r=1.0; x=r*Math.cos(a)-r; y=2+r*Math.sin(a); z=(Math.random()-0.5)*0.3; }
-                        newTargets[i*3]=x;newTargets[i*3+1]=y;newTargets[i*3+2]=z;
-                    } break;
-            }
-            for(let i=0; i<count*3; i++) targetPositions[i] = newTargets[i];
-        }
-
-        // --- MediaPipe 与骨骼 ---
-        async function setupMediaPipe() {
-            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm");
-            handLandmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`, delegate: "GPU" },
-                runningMode: "VIDEO", numHands: 1
-            });
-        }
-        function setupSkeleton() {
-            const mat = new THREE.LineBasicMaterial({ color: 0x00ff00, depthTest: false, transparent: true, opacity: 0.5 });
-            const geo = new THREE.BufferGeometry(); const pos = new Float32Array(HandLandmarker.HAND_CONNECTIONS.length*2*3);
-            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            skeletonLines = new THREE.LineSegments(geo, mat); skeletonLines.renderOrder = 999;
-            mainScene.add(skeletonLines); // 添加到主场景
-        }
-
-        // --- 核心交互逻辑 (升级版) ---
-        function detectGestures(landmarks) {
-            const hudHand = document.getElementById('hand-state');
-            if (!landmarks || landmarks.length === 0) {
-                state.handDetected = false; state.gesture = 'NONE';
-                hudHand.innerText = "NONE"; hudHand.className = ""; skeletonLines.visible = false;
-                return null;
-            }
-            state.handDetected = true; skeletonLines.visible = config.debugSkeleton;
-            const lm = landmarks[0];
-
-            // 坐标映射 (映射到主场景世界坐标系)
-            // 注意：这里需要根据相机距离和FOV进行调整，以确保手部位置与3D物体对齐
-            // 简化的经验值映射：
-            const mapCoord = (p) => new THREE.Vector3((p.x - 0.5) * 10, -(p.y - 0.5) * 8, 0);
-            const handPoints = lm.map(p => mapCoord(p));
-
-            // 更新骨骼
-            const positions = skeletonLines.geometry.attributes.position.array; let idx = 0;
-            for(let pair of HandLandmarker.HAND_CONNECTIONS) {
-                const p1 = handPoints[pair.start], p2 = handPoints[pair.end];
-                positions[idx++]=p1.x;positions[idx++]=p1.y;positions[idx++]=p1.z; positions[idx++]=p2.x;positions[idx++]=p2.y;positions[idx++]=p2.z;
-            }
-            skeletonLines.geometry.attributes.position.needsUpdate = true;
-
-            // 手势识别
-            const wrist = handPoints[0], tips = [4, 8, 12, 16, 20];
-            let foldedCount = 0; tips.forEach(t => { if (handPoints[t].distanceTo(wrist) < 1.5) foldedCount++; });
-            const pinchDist = handPoints[4].distanceTo(handPoints[8]);
-
-            let newGesture = 'HOVER';
-            hudHand.className = "";
-            if (foldedCount >= 4) { newGesture = 'FIST'; hudHand.className = "alert"; }
-            else if (pinchDist < 0.5) { newGesture = 'PINCH'; hudHand.className = "highlight"; }
-
-            // 状态机动作
-            if (newGesture === 'FIST' && state.gesture !== 'FIST') triggerExplosion();
-
-            // --- Pinch 多轴旋转逻辑 ---
-            if (newGesture === 'PINCH') {
-                // 使用手掌中心点 (Index 9) 作为控制锚点
-                const palmCenter = handPoints[9];
-                if (!state.isPinching) {
-                    state.isPinching = true;
-                    // 记录起始位置 (使用屏幕归一化坐标更稳定，从原始lm获取)
-                    state.pinchStartPos.set(lm[9].x, lm[9].y);
-                }
-                // 计算位移差值
-                const deltaX = lm[9].x - state.pinchStartPos.x;
-                const deltaY = lm[9].y - state.pinchStartPos.y;
-                
-                // 映射到目标旋转角度 (灵敏度系数 5.0 可调)
-                // 水平移动控制 Y 轴旋转，垂直移动控制 X 轴旋转
-                state.targetRotation.y = deltaX * 5.0;
-                state.targetRotation.x = deltaY * 5.0;
-
+            if (task.status === 'pending') {
+                statusHtml = `<button class="action-btn btn-finish" onclick="markWaiting(${task.id})">我做完啦</button>`;
+            } else if (task.status === 'waiting') {
+                cardClass = 'status-waiting';
+                statusHtml = `<button class="action-btn btn-verify" onclick="openVerifyModal(${task.id})">家长检查</button>`;
             } else {
-                state.isPinching = false;
-                // 可选：松手后自动回正
-                // state.targetRotation.set(0, 0, 0);
+                cardClass = 'status-done';
+                statusHtml = `<span class="done-badge">🌺 已奖励</span>`;
             }
 
-            state.gesture = newGesture; hudHand.innerText = newGesture;
-            return handPoints[9]; // 返回手掌中心用于排斥场
-        }
+            // 格式化时间
+            const d = new Date(task.deadline);
+            const timeStr = isNaN(d.getTime()) ? '无截止时间' : `${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 
-        function triggerExplosion() {
-            if (state.isExploding) return; state.isExploding = true;
-            for(let i=0; i<config.particleCount; i++) velocities[i].set((Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce, (Math.random()-0.5)*config.explosionForce);
-            setTimeout(() => { state.currentShapeIndex++; generateShape(state.currentShapeIndex); state.isExploding = false; }, 500);
-        }
+            const li = document.createElement('li');
+            li.className = `task-card ${cardClass}`;
+            li.innerHTML = `
+                <div class="task-info">
+                    <h3><span class="task-subject">${task.subject}</span> ${task.desc}</h3>
+                    <p>🕒 截止: ${timeStr}</p>
+                </div>
+                <div>${statusHtml}</div>
+                ${task.status !== 'done' ? `<div style="margin-left:10px; cursor:pointer; color:#ccc" onclick="deleteTask(${task.id})">✕</div>` : ''}
+            `;
+            list.appendChild(li);
+        });
+    }
 
-        // --- 物理更新 ---
-        function updatePhysics(handPos) {
-            // 应用旋转 (对容器进行平滑插值)
-            particleContainer.rotation.y += (state.targetRotation.y - particleContainer.rotation.y) * 0.1;
-            particleContainer.rotation.x += (state.targetRotation.x - particleContainer.rotation.x) * 0.1;
+    function deleteTask(id) {
+        if(confirm("确定删除这个作业吗？")) {
+            appData.tasks = appData.tasks.filter(t => t.id !== id);
+            saveData();
+        }
+    }
+
+    function markWaiting(id) {
+        const task = appData.tasks.find(t => t.id === id);
+        if (task) {
+            task.status = 'waiting';
+            saveData();
+            showToast("真棒！快去叫爸爸妈妈来检查吧~");
+        }
+    }
+
+    // --- 家长审核逻辑 ---
+    let currentVerifyId = null;
+
+    function openVerifyModal(id) {
+        currentVerifyId = id;
+        document.getElementById('parent-pin').value = '';
+        document.getElementById('parent-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('parent-modal').style.display = 'none';
+        currentVerifyId = null;
+    }
+
+    function verifyParent() {
+        const pin = document.getElementById('parent-pin').value;
+        if (pin === DEFAULT_PIN) {
+            confirmTaskDone(currentVerifyId);
+            closeModal();
+        } else {
+            alert("密码错误哦！");
+        }
+    }
+
+    function confirmTaskDone(id) {
+        const task = appData.tasks.find(t => t.id === id);
+        if (task) {
+            task.status = 'done';
+            // 积分规则：这里设定一个作业 +5 分
+            const pointsEarned = 5;
+            appData.score += pointsEarned;
+            saveData();
             
-            const pos = particles.geometry.attributes.position.array;
-            for (let i = 0; i < config.particleCount; i++) {
-                let vx = velocities[i].x, vy = velocities[i].y, vz = velocities[i].z;
-                const idx=i*3, px=pos[idx], py=pos[idx+1], pz=pos[idx+2], tx=targetPositions[idx], ty=targetPositions[idx+1], tz=targetPositions[idx+2];
-                
-                if (!state.isExploding) {
-                    vx += (tx - px) * config.returnSpeed; vy += (ty - py) * config.returnSpeed; vz += (tz - pz) * config.returnSpeed;
-                }
-                if (state.handDetected && handPos && state.gesture === 'HOVER') {
-                    // 简化的世界坐标排斥 (忽略容器旋转以提高性能)
-                    const dx = px - handPos.x, dy = py - handPos.y, distSq = dx*dx + dy*dy;
-                    if (distSq < 2.5) { const dist = Math.sqrt(distSq), force = (1.6 - dist) * config.scatterStrength; vx += (dx/dist)*force; vy += (dy/dist)*force; }
-                }
-                vx*=0.9; vy*=0.9; vz*=0.9;
-                pos[idx]+=vx; pos[idx+1]+=vy; pos[idx+2]+=vz;
-                velocities[i].set(vx, vy, vz);
+            // 播放特效
+            createFlower(window.innerWidth / 2, window.innerHeight / 2);
+            showToast(`作业完成！获得 ${pointsEarned} 个小红花积分！`);
+        }
+    }
+
+    // --- 商城逻辑 ---
+    function renderMall() {
+        const grid = document.getElementById('mall-container');
+        grid.innerHTML = '';
+        
+        appData.products.forEach(p => {
+            const canBuy = appData.score >= p.price;
+            const item = document.createElement('div');
+            item.className = 'product-card';
+            item.innerHTML = `
+                <span class="product-icon">${p.icon}</span>
+                <div style="font-weight:bold">${p.name}</div>
+                <div class="product-price">🌺 ${p.price}</div>
+                <button class="btn-buy" ${!canBuy ? 'disabled' : ''} onclick="buyProduct(${p.id})">
+                    ${canBuy ? '立即兑换' : '积分不足'}
+                </button>
+            `;
+            grid.appendChild(item);
+        });
+    }
+
+    function buyProduct(id) {
+        const product = appData.products.find(p => p.id === id);
+        if (product && appData.score >= product.price) {
+            if(confirm(`确定要花 ${product.price} 积分兑换 "${product.name}" 吗？`)) {
+                appData.score -= product.price;
+                saveData();
+                showToast(`兑换成功！快去找爸爸妈妈领奖吧！`);
+                // 可以在这里添加兑换记录逻辑
             }
-            particles.geometry.attributes.position.needsUpdate = true;
         }
+    }
 
-        // --- GUI & 工具 ---
-        function setupGUI() {
-            const gui = new GUI({ title: 'SYSTEM_CTRL' });
-            gui.add(config, 'scatterStrength', 0, 5).name('REPULSION');
-            gui.add(config, 'returnSpeed', 0.01, 0.2).name('COHESION');
-            gui.add(config, 'debugSkeleton').name('SKELETON_VIS').onChange(v => skeletonLines.visible = v);
-            const folder = gui.addFolder('COLOR_THEME');
-            folder.addColor(config, 'color1').onChange(updateColors); folder.addColor(config, 'color2').onChange(updateColors);
-        }
-        function updateColors() {
-            const c1 = new THREE.Color(config.color1), c2 = new THREE.Color(config.color2), colors = particles.geometry.attributes.color.array;
-            for(let i=0; i<config.particleCount; i++) { const mixed = c1.clone().lerp(c2, Math.random()); colors[i*3]=mixed.r; colors[i*3+1]=mixed.g; colors[i*3+2]=mixed.b; }
-            particles.geometry.attributes.color.needsUpdate = true;
-        }
-        function onResize() {
-            const w = window.innerWidth, h = window.innerHeight;
-            renderer.setSize(w, h);
-            mainCamera.aspect = w / h; mainCamera.updateProjectionMatrix();
-            material.uniforms.scale.value = h / 2.0;
-        }
+    // --- 工具函数 ---
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.style.opacity = 1;
+        setTimeout(() => { t.style.opacity = 0; }, 2000);
+    }
 
-        // --- 主渲染循环 (双视口) ---
-        let lastTime = 0;
-        function animate(time) {
-            requestAnimationFrame(animate);
-            const delta = time - lastTime; lastTime = time;
+    function createFlower(x, y) {
+        const flower = document.createElement('div');
+        flower.innerText = '🌺';
+        flower.className = 'flower-anim';
+        flower.style.left = x + 'px';
+        flower.style.top = y + 'px';
+        document.body.appendChild(flower);
+        setTimeout(() => flower.remove(), 1500);
+    }
 
-            // 1. 逻辑更新
-            if (handLandmarker && state.videoReady) {
-                const results = handLandmarker.detectForVideo(video, performance.now());
-                const handCenter = detectGestures(results.landmarks);
-                updatePhysics(handCenter);
-            } else { updatePhysics(null); }
+</script>
 
-            document.getElementById('particle-count').innerText = config.particleCount;
-            document.getElementById('fps-counter').innerText = Math.round(1000 / delta) || 0;
-
-            // 2. 核心渲染流程 (双视口)
-            const w = window.innerWidth, h = window.innerHeight;
-
-            // A. 渲染主视口 (全屏黑背景 + 粒子)
-            renderer.setViewport(0, 0, w, h);
-            renderer.setScissor(0, 0, w, h);
-            renderer.setScissorTest(true);
-            renderer.clear(true, true, true); // 清除为黑色
-            renderer.render(mainScene, mainCamera);
-
-            // B. 渲染次视口 (右上角视频)
-            if (state.videoReady) {
-                const vw = w * config.videoScale; 
-                const vh = vw * (9/16); // 保持 16:9 比例 (假设摄像头是 16:9)
-                const vx = w - vw - 10; // 右边距 10px
-                const vy = h - vh - 10; // 上边距 10px
-                
-                renderer.setViewport(vx, vy, vw, vh);
-                renderer.setScissor(vx, vy, vw, vh);
-                renderer.setScissorTest(true);
-                renderer.clearDepth(); // 关键：清除深度，防止粒子遮挡视频
-                renderer.render(videoScene, videoCamera);
-            }
-            renderer.setScissorTest(false);
-        }
-
-        init();
-    </script>
 </body>
 </html>
